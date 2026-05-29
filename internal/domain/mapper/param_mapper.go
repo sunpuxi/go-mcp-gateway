@@ -1,4 +1,4 @@
-package domain
+package mapper
 
 import (
 	"encoding/json"
@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/sunpuxi/go-mcp-gateway/internal/domain/entity"
 )
 
 // MappedRequest 是参数映射后的 HTTP 请求信息
@@ -17,7 +19,7 @@ type MappedRequest struct {
 }
 
 // MapParams 将 MCP arguments 按工具的参数规则映射为 HTTP 请求信息
-func MapParams(tool *Tool, arguments map[string]any) (*MappedRequest, error) {
+func MapParams(tool *entity.Tool, arguments map[string]any) (*MappedRequest, error) {
 	rules, err := tool.ParseParams()
 	if err != nil {
 		return nil, fmt.Errorf("解析参数规则失败: %w", err)
@@ -33,12 +35,10 @@ func MapParams(tool *Tool, arguments map[string]any) (*MappedRequest, error) {
 	for _, rule := range rules {
 		val, exists := arguments[rule.Name]
 
-		// 必填参数缺失
 		if rule.Required && !exists {
 			return nil, fmt.Errorf("缺少必填参数: %s", rule.Name)
 		}
 
-		// 非必填且未传
 		if !exists {
 			if rule.DefaultValue != "" {
 				val = rule.DefaultValue
@@ -52,13 +52,10 @@ func MapParams(tool *Tool, arguments map[string]any) (*MappedRequest, error) {
 		switch rule.Location {
 		case "path":
 			mapped.Path = strings.ReplaceAll(mapped.Path, "{"+rule.Name+"}", url.PathEscape(strVal))
-
 		case "query":
 			mapped.Query.Add(rule.Name, strVal)
-
 		case "header":
 			mapped.Header.Set(rule.Name, strVal)
-
 		case "body":
 			mapped.Body[rule.Name] = val
 		}

@@ -1,4 +1,4 @@
-package domain
+package infrahttp
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// HTTPClient 封装 HTTP 请求调用
+// HTTPClient 封装 HTTP 请求调用（基础设施层）
 type HTTPClient struct {
 	client *http.Client
 }
@@ -25,7 +25,6 @@ func NewHTTPClient() *HTTPClient {
 }
 
 // DoRequest 执行一次 HTTP 请求，支持按请求设置超时（通过 context）
-// 返回响应体和响应状态码，err 表示网络/传输层错误
 func (c *HTTPClient) DoRequest(method, url string, header http.Header, body []byte, timeoutMs int) (int, []byte, error) {
 	var reqBody io.Reader
 	if body != nil {
@@ -37,7 +36,6 @@ func (c *HTTPClient) DoRequest(method, url string, header http.Header, body []by
 		return 0, nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
-	// 设置 Header
 	for k, vals := range header {
 		for _, v := range vals {
 			req.Header.Add(k, v)
@@ -47,7 +45,6 @@ func (c *HTTPClient) DoRequest(method, url string, header http.Header, body []by
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	// 每个请求独立超时控制，不修改共享的 client.Timeout
 	if timeoutMs > 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
 		defer cancel()

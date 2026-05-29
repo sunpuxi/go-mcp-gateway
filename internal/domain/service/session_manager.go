@@ -1,32 +1,24 @@
-package domain
+package service
 
 import (
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sunpuxi/go-mcp-gateway/internal/domain/entity"
 )
 
-// Session 表示一个 MCP 会话
-type Session struct {
-	ID              string    `json:"id"`
-	ProtocolVersion string    `json:"protocol_version"`
-	Initialized     bool      `json:"initialized"`
-	CreatedAt       time.Time `json:"created_at"`
-	SSECh           chan []byte `json:"-"` // SSE 通道，用于向客户端推送响应
-}
-
-// SessionManager 管理内存中的会话
+// SessionManager 管理内存中的 MCP 会话
 type SessionManager struct {
 	mu       sync.RWMutex
-	sessions map[string]*Session
+	sessions map[string]*entity.Session
 	ttl      time.Duration
 }
 
 // NewSessionManager 创建会话管理器，ttl 为会话过期时间，0 表示永不过期
 func NewSessionManager(ttl time.Duration) *SessionManager {
 	sm := &SessionManager{
-		sessions: make(map[string]*Session),
+		sessions: make(map[string]*entity.Session),
 		ttl:      ttl,
 	}
 	if ttl > 0 {
@@ -36,11 +28,11 @@ func NewSessionManager(ttl time.Duration) *SessionManager {
 }
 
 // Create 创建一个新会话
-func (sm *SessionManager) Create() *Session {
+func (sm *SessionManager) Create() *entity.Session {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	session := &Session{
+	session := &entity.Session{
 		ID:        uuid.New().String(),
 		CreatedAt: time.Now(),
 	}
@@ -49,7 +41,7 @@ func (sm *SessionManager) Create() *Session {
 }
 
 // Get 获取会话
-func (sm *SessionManager) Get(id string) (*Session, bool) {
+func (sm *SessionManager) Get(id string) (*entity.Session, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 

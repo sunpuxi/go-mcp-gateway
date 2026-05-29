@@ -8,15 +8,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/sunpuxi/go-mcp-gateway/internal/config"
+	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
+	"github.com/sunpuxi/go-mcp-gateway/config"
+	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
+	infrahttp "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/http"
 	dbpkg "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/db"
-	"github.com/sunpuxi/go-mcp-gateway/internal/domain"
 	mcphttp "github.com/sunpuxi/go-mcp-gateway/internal/interface/mcp"
 )
 
 func main() {
 	// 加载配置
-	cfg, err := config.Load("config.yaml")
+	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
@@ -26,16 +28,19 @@ func main() {
 	defer db.Close()
 
 	// 创建 Session 管理器（30 分钟过期）
-	sessionManager := domain.NewSessionManager(30 * time.Minute)
+	sessionManager := domainservice.NewSessionManager(30 * time.Minute)
 
 	// 创建 Tool Repository
 	toolRepo := dbpkg.NewToolRepo(db)
 
 	// 创建 HTTP 客户端
-	httpClient := domain.NewHTTPClient()
+	httpClient := infrahttp.NewHTTPClient()
 
-	// 创建 MCP Handler
-	mcpHandler := mcphttp.NewHandler(sessionManager, toolRepo, httpClient)
+	// 创建 MCP 应用层服务
+	mcpSvc := appservice.NewMCPService(toolRepo, httpClient)
+
+	// 创建 MCP Handler（传输层）
+	mcpHandler := mcphttp.NewHandler(sessionManager, mcpSvc)
 
 	// 创建路由
 	r := chi.NewRouter()
