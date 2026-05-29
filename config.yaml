@@ -6,7 +6,7 @@ admin:
   api_key: "admin_change_me"
 
 database:
-  dsn: "root:password@tcp(127.0.0.1:3306)/mcp_gateway?charset=utf8mb4&parseTime=True"
+  dsn: "root:2531qwer@tcp(127.0.0.1:3306)/go-mco-gateway?charset=utf8mb4&parseTime=True"
 
 redis:
   addr: "127.0.0.1:6379"
