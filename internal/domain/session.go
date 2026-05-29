@@ -13,6 +13,7 @@ type Session struct {
 	ProtocolVersion string    `json:"protocol_version"`
 	Initialized     bool      `json:"initialized"`
 	CreatedAt       time.Time `json:"created_at"`
+	SSECh           chan []byte `json:"-"` // SSE 通道，用于向客户端推送响应
 }
 
 // SessionManager 管理内存中的会话

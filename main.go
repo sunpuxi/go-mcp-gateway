@@ -42,8 +42,9 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// MCP 端点
-	r.Post("/mcp", mcpHandler.ServeHTTP)
+	// MCP SSE 传输端点
+	r.Get("/sse", mcpHandler.HandleSSE)             // SSE 流（服务端推送通道）
+	r.Post("/messages", mcpHandler.HandleMessage)   // 消息接收（客户端请求）
 
 	// 启动服务器
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
