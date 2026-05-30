@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sunpuxi/go-mcp-gateway/config"
+	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
 	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	dbpkg "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/db"
@@ -29,7 +30,7 @@ func main() {
 	defer db.Close()
 
 	// 创建 Session 管理器（30 分钟过期）
-	sessionManager := domainservice.NewSessionManager(30 * time.Minute)
+	sessionManager := sessionpkg.NewManager(30 * time.Minute)
 
 	// 创建工具仓储（同时满足 ToolQuerier + ToolAdminRepository）
 	toolRepo := dbpkg.NewToolRepo(db)

@@ -1,8 +1,6 @@
 package service
 
-import (
-	"github.com/sunpuxi/go-mcp-gateway/pkg/mcp"
-)
+import "github.com/sunpuxi/go-mcp-gateway/pkg/mcp"
 
 // BuildToolCallResult 将下游 HTTP 响应转为 MCP ToolCallResult
 func BuildToolCallResult(statusCode int, body []byte, err error) (*mcp.ToolCallResult, bool) {

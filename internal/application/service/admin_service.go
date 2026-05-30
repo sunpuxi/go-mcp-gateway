@@ -10,7 +10,7 @@ import (
 
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/entity"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/repository"
-	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
+	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
 )
 
 // ======================== DTOs ========================
@@ -80,7 +80,7 @@ type AdminService struct {
 	projectRepo    repository.ProjectRepository
 	toolRepo       repository.ToolAdminRepository
 	clientRepo     repository.ClientRepository
-	sessionManager *domainservice.SessionManager
+	sessionManager *sessionpkg.Manager
 }
 
 // NewAdminService 创建 AdminService
@@ -88,7 +88,7 @@ func NewAdminService(
 	projectRepo repository.ProjectRepository,
 	toolRepo repository.ToolAdminRepository,
 	clientRepo repository.ClientRepository,
-	sessionManager *domainservice.SessionManager,
+	sessionManager *sessionpkg.Manager,
 ) *AdminService {
 	return &AdminService{
 		projectRepo:    projectRepo,

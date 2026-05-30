@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appcommand "github.com/sunpuxi/go-mcp-gateway/internal/application/command"
+	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
 	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/jsonrpc"
@@ -20,12 +21,12 @@ const sseHeartbeatInterval = 15 * time.Second
 
 // Handler 是 MCP 传输层的 HTTP 处理器
 type Handler struct {
-	sessionManager *domainservice.SessionManager
+	sessionManager *sessionpkg.Manager
 	mcpService     *appservice.MCPService
 	authService    *domainservice.AuthService
 }
 
-func NewHandler(sm *domainservice.SessionManager, ms *appservice.MCPService, as *domainservice.AuthService) *Handler {
+func NewHandler(sm *sessionpkg.Manager, ms *appservice.MCPService, as *domainservice.AuthService) *Handler {
 	return &Handler{sessionManager: sm, mcpService: ms, authService: as}
 }
 

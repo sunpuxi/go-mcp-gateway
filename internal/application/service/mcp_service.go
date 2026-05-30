@@ -8,7 +8,6 @@ import (
 	"github.com/sunpuxi/go-mcp-gateway/internal/application/query"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/mapper"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/repository"
-	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	infrahttp "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/http"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/mcp"
 )
@@ -42,7 +41,7 @@ func (s *MCPService) ListTools(permissions []string) (*query.ToolListOutput, err
 			continue // 跳过无权限的工具
 		}
 		rules, _ := t.ParseParams()
-		inputSchema := domainservice.BuildInputSchema(rules)
+		inputSchema := mapper.BuildInputSchema(rules)
 
 		defs = append(defs, mcp.ToolDefinition{
 			Name:        t.Name,
@@ -86,7 +85,7 @@ func (s *MCPService) CallTool(input command.CallToolInput, permissions []string)
 	)
 
 	// 5. 处理响应
-	result, isDownstreamErr := domainservice.BuildToolCallResult(statusCode, respBody, httpErr)
+	result, isDownstreamErr := BuildToolCallResult(statusCode, respBody, httpErr)
 	if isDownstreamErr {
 		var msg string
 		if httpErr != nil {
