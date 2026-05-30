@@ -90,7 +90,7 @@ function Tools() {
       render: (v: string) => <Tag color="purple">{projectLabels[v] || v}</Tag>,
     },
     {
-      title: '方法', dataIndex: 'http_method', key: 'http_method', width: 90, align: 'center',
+      title: '方法', dataIndex: 'http_method', key: 'http_method', width: 90, align: 'center' as const,
       render: (m: string) => (
         <Tag color={httpColors[m] || 'default'} style={{ fontWeight: 600, minWidth: 48, textAlign: 'center' }}>
           {m}
@@ -102,17 +102,17 @@ function Tools() {
       render: (v: string) => <code style={{ fontSize: 13, background: '#f5f5f5', padding: '2px 6px', borderRadius: 4 }}>{v}</code>,
     },
     {
-      title: '参数', key: 'params', width: 70, align: 'center',
+      title: '参数', key: 'params', width: 70, align: 'center' as const,
       render: (_: unknown, r: Tool) => (
         <Tag color={r.params.length > 0 ? 'blue' : 'default'}>{r.params.length} 个</Tag>
       ),
     },
     {
-      title: '超时', dataIndex: 'timeout_ms', key: 'timeout_ms', width: 90, align: 'center',
+      title: '超时', dataIndex: 'timeout_ms', key: 'timeout_ms', width: 90, align: 'center' as const,
       render: (v: number) => <span style={{ color: '#666' }}>{v}ms</span>,
     },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center',
+      title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center' as const,
       render: (s: number) => (
         <Tag color={s === 1 ? 'success' : 'error'} style={{ minWidth: 48, textAlign: 'center' }}>
           {s === 1 ? '启用' : '禁用'}
@@ -120,7 +120,7 @@ function Tools() {
       ),
     },
     {
-      title: '操作', key: 'action', width: 100, align: 'center',
+      title: '操作', key: 'action', width: 100, align: 'center' as const,
       render: (_: unknown, record: Tool) => (
         <Space size="small">
           <Tooltip title="编辑">
@@ -281,7 +281,7 @@ function Tools() {
                         ),
                       },
                       {
-                        title: '必填', width: 60, align: 'center', render: (_: unknown, f: { key: number, name: number }) => (
+                        title: '必填', width: 60, align: 'center' as const, render: (_: unknown, f: { key: number, name: number }) => (
                           <Form.Item name={[f.name, 'required']} noStyle valuePropName="checked">
                             <Select size="small" options={[{ value: true, label: '是' }, { value: false, label: '否' }]} style={{ width: 55 }} />
                           </Form.Item>

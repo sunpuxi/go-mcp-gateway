@@ -60,7 +60,7 @@ function Clients() {
       ),
     },
     {
-      title: '已授权工具', dataIndex: 'tool_count', key: 'tool_count', width: 100, align: 'center',
+      title: '已授权工具', dataIndex: 'tool_count', key: 'tool_count', width: 100, align: 'center' as const,
       render: (v: number) => (
         <Tag color={v > 0 ? 'blue' : 'default'} style={{ minWidth: 32, textAlign: 'center' }}>
           {v} 个
@@ -68,7 +68,7 @@ function Clients() {
       ),
     },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center',
+      title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center' as const,
       render: (s: number) => (
         <Tag color={s === 1 ? 'success' : 'error'} style={{ minWidth: 48, textAlign: 'center' }}>
           {s === 1 ? '启用' : '禁用'}
@@ -76,7 +76,7 @@ function Clients() {
       ),
     },
     {
-      title: '操作', key: 'action', width: 200, align: 'center',
+      title: '操作', key: 'action', width: 200, align: 'center' as const,
       render: (_: unknown, record: Client) => (
         <Space size="small">
           <Tooltip title="生成新 API Key">

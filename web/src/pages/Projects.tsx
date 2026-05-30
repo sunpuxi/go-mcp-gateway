@@ -50,7 +50,7 @@ function Projects() {
       ),
     },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 100, align: 'center',
+      title: '状态', dataIndex: 'status', key: 'status', width: 100, align: 'center' as const,
       render: (s: number) => (
         <Tag color={s === 1 ? 'success' : 'error'} style={{ minWidth: 48, textAlign: 'center' }}>
           {s === 1 ? '启用' : '禁用'}
@@ -58,7 +58,7 @@ function Projects() {
       ),
     },
     {
-      title: '操作', key: 'action', width: 140, align: 'center',
+      title: '操作', key: 'action', width: 140, align: 'center' as const,
       render: (_: unknown, record: Project) => (
         <Space size="small">
           <Tooltip title="编辑">
