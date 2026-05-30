@@ -38,8 +38,8 @@ class ApiClient {
         window.location.reload()
         throw new Error('认证失败，请重新登录')
       }
-      const error = await resp.json().catch(() => ({ message: resp.statusText }))
-      throw new Error(error.message || `HTTP ${resp.status}`)
+      const body = await resp.json().catch(() => ({ error: resp.statusText }))
+      throw new Error(body.error || body.message || `HTTP ${resp.status}`)
     }
 
     return resp.json()

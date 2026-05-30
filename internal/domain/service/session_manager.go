@@ -78,6 +78,13 @@ func (sm *SessionManager) MarkInitialized(id string, protocolVersion string) boo
 	return true
 }
 
+// ActiveCount 返回当前活跃会话数
+func (sm *SessionManager) ActiveCount() int {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return len(sm.sessions)
+}
+
 // cleanupLoop 定期清理过期会话
 func (sm *SessionManager) cleanupLoop() {
 	ticker := time.NewTicker(sm.ttl / 2)

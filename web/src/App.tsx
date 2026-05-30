@@ -1,5 +1,7 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { LayoutDashboard, FolderKanban, Wrench, KeyRound, ShieldCheck } from 'lucide-react'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ToastProvider } from './components/Toast'
 import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import Tools from './pages/Tools'
@@ -8,11 +10,11 @@ import Permissions from './pages/Permissions'
 import Login from './pages/Login'
 
 const navItems = [
-  { path: '/', label: '📊 仪表盘', end: true },
-  { path: '/projects', label: '📁 项目管理' },
-  { path: '/tools', label: '🛠 工具管理' },
-  { path: '/clients', label: '🔑 客户端管理' },
-  { path: '/permissions', label: '🔐 权限管理' },
+  { path: '/', label: '仪表盘', icon: LayoutDashboard, end: true },
+  { path: '/projects', label: '项目管理', icon: FolderKanban },
+  { path: '/tools', label: '工具管理', icon: Wrench },
+  { path: '/clients', label: '客户端管理', icon: KeyRound },
+  { path: '/permissions', label: '权限管理', icon: ShieldCheck },
 ]
 
 function AppLayout() {
@@ -34,6 +36,7 @@ function AppLayout() {
               end={item.end}
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
+              <item.icon size={18} />
               {item.label}
             </NavLink>
           ))}
@@ -50,9 +53,13 @@ function AppLayout() {
               width: '100%',
               textAlign: 'left',
               padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
             }}
           >
-            🚪 退出登录
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            退出登录
           </button>
         </div>
       </aside>
@@ -73,7 +80,9 @@ function AppLayout() {
 function App() {
   return (
     <AuthProvider>
-      <AppLayout />
+      <ToastProvider>
+        <AppLayout />
+      </ToastProvider>
     </AuthProvider>
   )
 }

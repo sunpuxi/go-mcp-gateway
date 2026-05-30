@@ -1,5 +1,3 @@
-use `go-mco-gateway`;
-
 CREATE TABLE projects (
                           project_id     VARCHAR(64) PRIMARY KEY,
                           name           VARCHAR(128) NOT NULL,

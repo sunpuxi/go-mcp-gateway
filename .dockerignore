@@ -1,0 +1,6 @@
+web/
+doc/
+.git/
+*.exe
+*.exe~
+mcp-gateway
