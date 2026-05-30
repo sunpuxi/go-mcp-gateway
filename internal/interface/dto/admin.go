@@ -4,19 +4,20 @@ import "github.com/sunpuxi/go-mcp-gateway/internal/domain/entity"
 
 // ToolDTO 管理后台工具响应/请求，params 为 ParamRule 数组而非 RawMessage
 type ToolDTO struct {
-	ToolID      int64             `json:"tool_id"`
-	ProjectID   string            `json:"project_id"`
-	Name        string            `json:"name"`
-	Title       string            `json:"title"`
-	Description string            `json:"description"`
-	HTTPMethod  string            `json:"http_method"`
-	URLTemplate string            `json:"url_template"`
-	BaseURL     string            `json:"base_url"`
-	TimeoutMs   int               `json:"timeout_ms"`
+	ToolID      int64              `json:"tool_id"`
+	ProjectID   string             `json:"project_id"`
+	Name        string             `json:"name"`
+	Title       string             `json:"title"`
+	Description string             `json:"description"`
+	HTTPMethod  string             `json:"http_method"`
+	URLTemplate string             `json:"url_template"`
+	BaseURL     string             `json:"base_url"`
+	TimeoutMs   int                `json:"timeout_ms"`
 	Params      []entity.ParamRule `json:"params"`
-	Status      int               `json:"status"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
+	RetryConfig *entity.RetryConfig `json:"retry_config,omitempty"`
+	Status      int                `json:"status"`
+	CreatedAt   string             `json:"created_at"`
+	UpdatedAt   string             `json:"updated_at"`
 }
 
 // ProjectDTO 项目管理请求/响应

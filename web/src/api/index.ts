@@ -29,6 +29,13 @@ export interface ParamRule {
   description: string
 }
 
+export interface RetryConfig {
+  max_retries: number
+  backoff_type: string
+  retry_on_status: number[]
+  retry_on_methods: string[]
+}
+
 export interface Tool {
   tool_id: number
   project_id: string
@@ -39,6 +46,7 @@ export interface Tool {
   url_template: string
   timeout_ms: number
   params: ParamRule[]
+  retry_config?: RetryConfig | null
   status: number
   created_at?: string
   updated_at?: string
@@ -53,6 +61,7 @@ export interface ToolForm {
   url_template: string
   timeout_ms: number
   params: ParamRule[]
+  retry_config?: RetryConfig | null
   status: number
 }
 

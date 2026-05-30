@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/jmoiron/sqlx"
@@ -108,13 +109,14 @@ WHERE t.tool_id = ?`
 	return &t, nil
 }
 
-// Create 新建工具，params 为 JSON 字节
+// Create 新建工具，params 和 retry_config 为 JSON
 func (r *ToolRepo) Create(tool *entity.Tool) error {
-	query := `INSERT INTO tools (project_id, name, title, description, http_method, url_template, timeout_ms, params, status)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO tools (project_id, name, title, description, http_method, url_template, timeout_ms, params, retry_config, status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	result, err := r.db.Exec(query,
 		tool.ProjectID, tool.Name, tool.Title, tool.Description,
-		tool.HTTPMethod, tool.URLTemplate, tool.TimeoutMs, tool.Params, tool.Status,
+		tool.HTTPMethod, tool.URLTemplate, tool.TimeoutMs, tool.Params,
+		retryConfigToRaw(tool.RetryConfig), tool.Status,
 	)
 	if err != nil {
 		return err
@@ -127,13 +129,27 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 // Update 更新工具
 func (r *ToolRepo) Update(tool *entity.Tool) error {
 	query := `UPDATE tools SET project_id=?, name=?, title=?, description=?, http_method=?,
-url_template=?, timeout_ms=?, params=?, status=? WHERE tool_id=?`
+url_template=?, timeout_ms=?, params=?, retry_config=?, status=? WHERE tool_id=?`
 	_, err := r.db.Exec(query,
 		tool.ProjectID, tool.Name, tool.Title, tool.Description,
 		tool.HTTPMethod, tool.URLTemplate, tool.TimeoutMs, tool.Params,
+		retryConfigToRaw(tool.RetryConfig),
 		tool.Status, tool.ToolID,
 	)
 	return err
+}
+
+// retryConfigToRaw 将 RetryConfig 转为 json.RawMessage（nil → nil）
+func retryConfigToRaw(cfg *entity.RetryConfig) *json.RawMessage {
+	if cfg == nil {
+		return nil
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil
+	}
+	raw := json.RawMessage(data)
+	return &raw
 }
 
 // Delete 删除工具

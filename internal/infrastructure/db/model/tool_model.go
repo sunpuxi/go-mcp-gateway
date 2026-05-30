@@ -19,6 +19,7 @@ type ToolModel struct {
 	BaseURL     string           `db:"base_url"`
 	TimeoutMs   int              `db:"timeout_ms"`
 	Params      *json.RawMessage `db:"params"`
+	RetryConfig *json.RawMessage `db:"retry_config"`
 	Status      int              `db:"status"`
 	CreatedAt   time.Time        `db:"created_at"`
 	UpdatedAt   time.Time        `db:"updated_at"`
@@ -37,8 +38,18 @@ func (m *ToolModel) ToEntity() entity.Tool {
 		BaseURL:     m.BaseURL,
 		TimeoutMs:   m.TimeoutMs,
 		Params:      m.Params,
+		RetryConfig: parseRetryConfigSafe(m.RetryConfig),
 		Status:      m.Status,
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
 	}
+}
+
+// parseRetryConfigSafe 安全解析 retry_config JSON，解析失败返回 nil（不阻塞主流程）
+func parseRetryConfigSafe(raw *json.RawMessage) *entity.RetryConfig {
+	cfg, err := entity.ParseRetryConfig(raw)
+	if err != nil {
+		return nil
+	}
+	return cfg
 }

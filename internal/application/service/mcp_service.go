@@ -79,9 +79,10 @@ func (s *MCPService) CallTool(input command.CallToolInput, permissions []string)
 	url := mappedReq.BuildURL(tool.BaseURL)
 	body := mappedReq.BuildBody()
 
-	// 4. 发起 HTTP 请求到下游服务
-	statusCode, respBody, httpErr := s.httpClient.DoRequest(
-		tool.HTTPMethod, url, mappedReq.Header, body, tool.TimeoutMs,
+	// 4. 发起 HTTP 请求到下游服务（含重试）
+	statusCode, respBody, httpErr := doRequestWithRetry(
+		s.httpClient, tool.HTTPMethod, url, mappedReq.Header, body, tool.TimeoutMs,
+		tool.RetryConfig,
 	)
 
 	// 5. 处理响应

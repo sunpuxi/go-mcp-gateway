@@ -193,6 +193,7 @@ func (s *AdminService) ListTools(page, size int) ([]dto.ToolDTO, int, error) {
 			BaseURL:     t.BaseURL,
 			TimeoutMs:   t.TimeoutMs,
 			Params:      rules,
+			RetryConfig: t.RetryConfig,
 			Status:      t.Status,
 			CreatedAt:   t.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:   t.UpdatedAt.Format("2006-01-02 15:04:05"),
@@ -215,6 +216,7 @@ func (s *AdminService) CreateTool(req dto.ToolDTO) (*dto.ToolDTO, error) {
 		URLTemplate: req.URLTemplate,
 		TimeoutMs:   req.TimeoutMs,
 		Params:      &raw,
+		RetryConfig: req.RetryConfig,
 		Status:      req.Status,
 	}
 
@@ -227,6 +229,7 @@ func (s *AdminService) CreateTool(req dto.ToolDTO) (*dto.ToolDTO, error) {
 }
 
 // UpdateTool 更新工具
+// 仅更新显式传入的非零值字段，支持 partial update
 func (s *AdminService) UpdateTool(toolID int64, req dto.ToolDTO) (*dto.ToolDTO, error) {
 	existing, err := s.toolRepo.FindByID(toolID)
 	if err != nil {
@@ -236,17 +239,34 @@ func (s *AdminService) UpdateTool(toolID int64, req dto.ToolDTO) (*dto.ToolDTO, 
 		return nil, fmt.Errorf("工具不存在: %d", toolID)
 	}
 
-	paramsJSON, _ := json.Marshal(req.Params)
-	raw := json.RawMessage(paramsJSON)
-
-	existing.ProjectID = req.ProjectID
-	existing.Name = req.Name
-	existing.Title = req.Title
+	// 仅覆盖非零值字段（Status 特殊处理：始终更新，因为 0=禁用 是有效值）
+	if req.ProjectID != "" {
+		existing.ProjectID = req.ProjectID
+	}
+	if req.Name != "" {
+		existing.Name = req.Name
+	}
+	if req.Title != "" {
+		existing.Title = req.Title
+	}
 	existing.Description = req.Description
-	existing.HTTPMethod = req.HTTPMethod
-	existing.URLTemplate = req.URLTemplate
-	existing.TimeoutMs = req.TimeoutMs
-	existing.Params = &raw
+	if req.HTTPMethod != "" {
+		existing.HTTPMethod = req.HTTPMethod
+	}
+	if req.URLTemplate != "" {
+		existing.URLTemplate = req.URLTemplate
+	}
+	if req.TimeoutMs != 0 {
+		existing.TimeoutMs = req.TimeoutMs
+	}
+	if len(req.Params) > 0 {
+		paramsJSON, _ := json.Marshal(req.Params)
+		raw := json.RawMessage(paramsJSON)
+		existing.Params = &raw
+	}
+	// RetryConfig：nil 表示不修改，非 nil 直接覆盖（允许设为 nil 关闭重试）
+	existing.RetryConfig = req.RetryConfig
+	// Status 始终应用（0=禁用 是合法值）
 	existing.Status = req.Status
 
 	if err := s.toolRepo.Update(existing); err != nil {

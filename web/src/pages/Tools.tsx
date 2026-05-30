@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin, Collapse } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined, ReloadOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
-import { Tool, ToolForm, ParamRule, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
+import { Tool, ToolForm, ParamRule, RetryConfig, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
 
 const httpColors: Record<string, string> = {
   GET: 'green', POST: 'blue', PUT: 'orange', DELETE: 'red', PATCH: 'purple',
@@ -123,13 +123,23 @@ function Tools() {
     form.setFieldsValue({
       name: '', title: '', description: '', project_id: projectOptions[0]?.value || '',
       http_method: 'GET', url_template: '', timeout_ms: 5000, status: true, params: [],
+      retry_enabled: false, max_retries: 3, backoff_type: 'exponential',
+      retry_on_status: [502, 503, 504], retry_on_methods: ['GET'],
     })
     setOpen(true)
   }
 
   const openEdit = (t: Tool) => {
     setEditing(t)
-    form.setFieldsValue({ ...t, status: t.status === 1 })
+    const rc = t.retry_config
+    form.setFieldsValue({
+      ...t, status: t.status === 1,
+      retry_enabled: !!(rc && rc.max_retries > 0),
+      max_retries: rc?.max_retries ?? 3,
+      backoff_type: rc?.backoff_type ?? 'exponential',
+      retry_on_status: rc?.retry_on_status ?? [502, 503, 504],
+      retry_on_methods: rc?.retry_on_methods ?? ['GET'],
+    })
     setOpen(true)
   }
 
@@ -146,6 +156,12 @@ function Tools() {
         url_template: values.url_template,
         timeout_ms: values.timeout_ms,
         params: values.params || [],
+        retry_config: values.retry_enabled ? {
+          max_retries: values.max_retries ?? 3,
+          backoff_type: values.backoff_type ?? 'exponential',
+          retry_on_status: values.retry_on_status ?? [502, 503, 504],
+          retry_on_methods: values.retry_on_methods ?? ['GET'],
+        } : null,
         status: values.status ? 1 : 0,
       }
       if (editing) {
@@ -165,9 +181,25 @@ function Tools() {
   }
 
   const handleToggleStatus = async (id: number, checked: boolean) => {
+    const tool = tools.find(t => t.tool_id === id)
+    if (!tool) return
+
     setTogglingIds(prev => new Set(prev).add(id))
     try {
-      await updateTool(id, { status: checked ? 1 : 0 })
+      // 全量提交，仅修改 status，避免全量覆盖丢失其他字段
+      const payload: ToolForm = {
+        project_id: tool.project_id,
+        name: tool.name,
+        title: tool.title,
+        description: tool.description,
+        http_method: tool.http_method,
+        url_template: tool.url_template,
+        timeout_ms: tool.timeout_ms,
+        params: tool.params || [],
+        retry_config: tool.retry_config,
+        status: checked ? 1 : 0,
+      }
+      await updateTool(id, payload)
       toast.success(checked ? '工具已启用' : '工具已禁用')
       await loadData()
     } catch (e: unknown) {
@@ -335,6 +367,53 @@ function Tools() {
               </div>
             )}
           </Form.List>
+
+          <Collapse
+            ghost
+            items={[{
+              key: 'retry',
+              label: '重试策略（可选）',
+              children: (
+                <>
+                  <Form.Item name="retry_enabled" label="启用重试" valuePropName="checked">
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item noStyle shouldUpdate={(prev, cur) => prev.retry_enabled !== cur.retry_enabled}>
+                    {({ getFieldValue }) => {
+                      const enabled = getFieldValue('retry_enabled')
+                      if (!enabled) return null
+                      return (
+                        <>
+                          <Space.Compact block>
+                            <Form.Item name="max_retries" label="最大重试次数" style={{ flex: 1 }}>
+                              <InputNumber min={1} max={10} style={{ width: '100%' }} />
+                            </Form.Item>
+                            <Form.Item name="backoff_type" label="退避策略" style={{ flex: 1 }}>
+                              <Select options={[
+                                { value: 'exponential', label: '指数退避 (1s → 2s → 4s...)' },
+                                { value: 'fixed', label: '固定间隔 (每次 1s)' },
+                              ]} />
+                            </Form.Item>
+                          </Space.Compact>
+                          <Form.Item name="retry_on_status" label="触发重试的 HTTP 状态码">
+                            <Select mode="tags" placeholder="输入状态码后回车添加"
+                              options={[502, 503, 504, 500, 408, 429].map(s => ({ value: s, label: String(s) }))}
+                            />
+                          </Form.Item>
+                          <Form.Item name="retry_on_methods" label="允许重试的 HTTP 方法"
+                            help="默认仅 GET，POST/PUT/DELETE 需显式添加">
+                            <Select mode="tags" placeholder="添加方法"
+                              options={['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m }))}
+                            />
+                          </Form.Item>
+                        </>
+                      )
+                    }}
+                  </Form.Item>
+                </>
+              ),
+            }]}
+          />
         </Form>
       </Modal>
     </div>

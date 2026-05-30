@@ -17,6 +17,7 @@ type Tool struct {
 	BaseURL     string           `json:"base_url"`
 	TimeoutMs   int              `json:"timeout_ms"`
 	Params      *json.RawMessage `json:"params"`
+	RetryConfig *RetryConfig     `json:"retry_config,omitempty"`
 	Status      int              `json:"status"`
 	CreatedAt   time.Time        `json:"created_at"`
 	UpdatedAt   time.Time        `json:"updated_at"`
