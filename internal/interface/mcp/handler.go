@@ -9,8 +9,8 @@ import (
 	"time"
 
 	appcommand "github.com/sunpuxi/go-mcp-gateway/internal/application/command"
-	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
+	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
 	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/jsonrpc"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/logger"
@@ -64,6 +64,8 @@ func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
+		logger.Error("SSE 连接失败：ResponseWriter 不支持 Flusher，请检查反向代理是否关闭缓冲",
+			"client_id", clientID)
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
 		return
 	}
