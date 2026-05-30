@@ -15,6 +15,7 @@ function Tools() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tool | null>(null)
   const [saving, setSaving] = useState(false)
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set())
   const [form] = Form.useForm()
 
   const loadData = useCallback(async () => {
@@ -85,10 +86,12 @@ function Tools() {
     },
     {
       title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center' as const,
-      render: (s: number) => (
-        <Tag color={s === 1 ? 'success' : 'error'} style={{ minWidth: 48, textAlign: 'center' }}>
-          {s === 1 ? '启用' : '禁用'}
-        </Tag>
+      render: (s: number, record: Tool) => (
+        <Switch
+          checked={s === 1}
+          loading={togglingIds.has(record.tool_id)}
+          onChange={(checked) => handleToggleStatus(record.tool_id, checked)}
+        />
       ),
     },
     {
@@ -158,6 +161,23 @@ function Tools() {
       toast.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleToggleStatus = async (id: number, checked: boolean) => {
+    setTogglingIds(prev => new Set(prev).add(id))
+    try {
+      await updateTool(id, { status: checked ? 1 : 0 })
+      toast.success(checked ? '工具已启用' : '工具已禁用')
+      await loadData()
+    } catch (e: unknown) {
+      toast.error('操作失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
     }
   }
 

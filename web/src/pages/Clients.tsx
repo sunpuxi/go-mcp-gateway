@@ -13,6 +13,7 @@ function Clients() {
   const [editing, setEditing] = useState<Client | null>(null)
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
   const [form] = Form.useForm()
 
   const loadClients = useCallback(async () => {
@@ -75,10 +76,12 @@ function Clients() {
     },
     {
       title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center' as const,
-      render: (s: number) => (
-        <Tag color={s === 1 ? 'success' : 'error'} style={{ minWidth: 48, textAlign: 'center' }}>
-          {s === 1 ? '启用' : '禁用'}
-        </Tag>
+      render: (s: number, record: Client) => (
+        <Switch
+          checked={s === 1}
+          loading={togglingIds.has(record.client_id)}
+          onChange={(checked) => handleToggleStatus(record.client_id, checked)}
+        />
       ),
     },
     {
@@ -160,6 +163,23 @@ function Clients() {
       toast.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleToggleStatus = async (id: string, checked: boolean) => {
+    setTogglingIds(prev => new Set(prev).add(id))
+    try {
+      await updateClient(id, { status: checked ? 1 : 0 })
+      toast.success(checked ? '客户端已启用' : '客户端已禁用')
+      await loadClients()
+    } catch (e: unknown) {
+      toast.error('操作失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
     }
   }
 
