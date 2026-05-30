@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	appcommand "github.com/sunpuxi/go-mcp-gateway/internal/application/command"
@@ -21,10 +22,24 @@ const sseHeartbeatInterval = 15 * time.Second
 type Handler struct {
 	sessionManager *domainservice.SessionManager
 	mcpService     *appservice.MCPService
+	authService    *domainservice.AuthService
 }
 
-func NewHandler(sm *domainservice.SessionManager, ms *appservice.MCPService) *Handler {
-	return &Handler{sessionManager: sm, mcpService: ms}
+func NewHandler(sm *domainservice.SessionManager, ms *appservice.MCPService, as *domainservice.AuthService) *Handler {
+	return &Handler{sessionManager: sm, mcpService: ms, authService: as}
+}
+
+// extractAPIKey 从 Authorization Header 中提取 Bearer Token
+func extractAPIKey(r *http.Request) (string, bool) {
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return "", false
+	}
+	// 支持 "Bearer <key>" 和 "<key>" 两种格式
+	if strings.HasPrefix(auth, "Bearer ") {
+		return strings.TrimSpace(auth[7:]), true
+	}
+	return strings.TrimSpace(auth), true
 }
 
 // ============================================================================
@@ -32,13 +47,27 @@ func NewHandler(sm *domainservice.SessionManager, ms *appservice.MCPService) *Ha
 // ============================================================================
 
 func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
+	// 0. 鉴权
+	apiKey, ok := extractAPIKey(r)
+	if !ok || apiKey == "" {
+		http.Error(w, "缺少 API Key，请在 Authorization Header 中提供", http.StatusUnauthorized)
+		return
+	}
+
+	clientID, permissions, err := h.authService.Authenticate(r.Context(), apiKey)
+	if err != nil {
+		log.Printf("[SSE] 鉴权失败: %v", err)
+		http.Error(w, "API Key 认证失败: "+err.Error(), http.StatusUnauthorized)
+		return
+	}
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
 		return
 	}
 
-	session := h.sessionManager.Create()
+	session := h.sessionManager.Create(clientID, permissions)
 
 	ch := make(chan []byte, 16)
 	session.SSECh = ch
@@ -50,7 +79,7 @@ func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: /messages?session_id=%s\n\n", session.ID)
 	flusher.Flush()
 
-	log.Printf("[SSE] 新连接 session=%s", session.ID)
+	log.Printf("[SSE] 新连接 session=%s client=%s tools=%d", session.ID, clientID, len(permissions))
 
 	for {
 		select {
@@ -146,9 +175,8 @@ func (h *Handler) handleToolsList(sessionID string, req *jsonrpc.Request) {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidRequest, "请先完成 initialize"))
 		return
 	}
-	_ = session
 
-	output, err := h.mcpService.ListTools()
+	output, err := h.mcpService.ListTools(session.Permissions)
 	if err != nil {
 		log.Printf("查询工具列表失败: %v", err)
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInternalError, "查询工具列表失败"))
@@ -165,7 +193,6 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidRequest, "请先完成 initialize"))
 		return
 	}
-	_ = session
 
 	var callReq mcp.ToolCallRequest
 	if err := json.Unmarshal(req.Params, &callReq); err != nil {
@@ -176,10 +203,14 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 	output, err := h.mcpService.CallTool(appcommand.CallToolInput{
 		Name:      callReq.Name,
 		Arguments: callReq.Arguments,
-	})
+	}, session.Permissions)
 	if err != nil {
 		log.Printf("工具调用失败: %v", err)
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidParams, err.Error()))
+		return
+	}
+	if output.AuthError != "" {
+		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeAuthError, output.AuthError))
 		return
 	}
 	if output.DownstreamError != "" {

@@ -33,14 +33,20 @@ func main() {
 	// 创建 Tool Repository
 	toolRepo := dbpkg.NewToolRepo(db)
 
+	// 创建 Client Repository（鉴权用）
+	clientRepo := dbpkg.NewClientRepo(db)
+
 	// 创建 HTTP 客户端
 	httpClient := infrahttp.NewHTTPClient()
+
+	// 创建鉴权服务
+	authService := domainservice.NewAuthService(clientRepo)
 
 	// 创建 MCP 应用层服务
 	mcpSvc := appservice.NewMCPService(toolRepo, httpClient)
 
 	// 创建 MCP Handler（传输层）
-	mcpHandler := mcphttp.NewHandler(sessionManager, mcpSvc)
+	mcpHandler := mcphttp.NewHandler(sessionManager, mcpSvc, authService)
 
 	// 创建路由
 	r := chi.NewRouter()

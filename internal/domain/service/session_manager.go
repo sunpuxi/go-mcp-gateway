@@ -27,14 +27,16 @@ func NewSessionManager(ttl time.Duration) *SessionManager {
 	return sm
 }
 
-// Create 创建一个新会话
-func (sm *SessionManager) Create() *entity.Session {
+// Create 创建一个新会话，关联客户端 ID 和权限列表
+func (sm *SessionManager) Create(clientID string, permissions []string) *entity.Session {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	session := &entity.Session{
-		ID:        uuid.New().String(),
-		CreatedAt: time.Now(),
+		ID:          uuid.New().String(),
+		ClientID:    clientID,
+		Permissions: permissions,
+		CreatedAt:   time.Now(),
 	}
 	sm.sessions[session.ID] = session
 	return session

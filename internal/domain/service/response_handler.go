@@ -5,12 +5,6 @@ import (
 )
 
 // BuildToolCallResult 将下游 HTTP 响应转为 MCP ToolCallResult
-// statusCode: 下游 HTTP 状态码
-// body: 下游响应体
-// err: 网络/传输层错误（超时、连接失败等）
-// 返回 (result, shouldReturnError)
-//   - shouldReturnError=true  调用方应返回 JSON-RPC error（协议级错误）
-//   - shouldReturnError=false 调用方应返回 result（业务级结果，含 isError 标记）
 func BuildToolCallResult(statusCode int, body []byte, err error) (*mcp.ToolCallResult, bool) {
 	if err != nil {
 		return nil, true
