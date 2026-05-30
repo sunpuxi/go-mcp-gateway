@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
+	"github.com/sunpuxi/go-mcp-gateway/internal/interface/dto"
 )
 
 // ProjectHandler 项目相关 HTTP 处理器
@@ -27,16 +28,16 @@ func (ph *ProjectHandler) ListProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ph *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) {
-	var dto appservice.ProjectDTO
-	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+	var req dto.ProjectDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "JSON 解析失败: " + err.Error()})
 		return
 	}
-	if dto.ProjectID == "" || dto.Name == "" || dto.BaseURL == "" {
+	if req.ProjectID == "" || req.Name == "" || req.BaseURL == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "project_id、name、base_url 为必填字段"})
 		return
 	}
-	result, err := ph.adminService.CreateProject(dto)
+	result, err := ph.adminService.CreateProject(req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -46,12 +47,12 @@ func (ph *ProjectHandler) CreateProject(w http.ResponseWriter, r *http.Request) 
 
 func (ph *ProjectHandler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var dto appservice.ProjectDTO
-	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+	var req dto.ProjectDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "JSON 解析失败: " + err.Error()})
 		return
 	}
-	result, err := ph.adminService.UpdateProject(id, dto)
+	result, err := ph.adminService.UpdateProject(id, req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

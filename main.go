@@ -2,19 +2,21 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sunpuxi/go-mcp-gateway/config"
-	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
+	"github.com/sunpuxi/go-mcp-gateway/pkg/logger"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
+	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
 	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	dbpkg "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/db"
 	infrahttp "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/http"
 	adminhttp "github.com/sunpuxi/go-mcp-gateway/internal/interface/admin"
+	healthhttp "github.com/sunpuxi/go-mcp-gateway/internal/interface/health"
 	mcphttp "github.com/sunpuxi/go-mcp-gateway/internal/interface/mcp"
 )
 
@@ -22,11 +24,25 @@ func main() {
 	// 加载配置
 	cfg, err := config.Load("config/config.yaml")
 	if err != nil {
-		log.Fatalf("加载配置失败: %v", err)
+		fmt.Fprintf(os.Stderr, "加载配置失败: %v\n", err)
+		os.Exit(1)
 	}
 
+	// 初始化日志器（必须在其他组件之前）
+	if err := logger.Init(logger.Config{
+		Level:  cfg.Log.Level,
+		Format: cfg.Log.Format,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "初始化日志器失败: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Sync()
+
 	// 初始化数据库
-	db := dbpkg.NewMySQL(cfg.Database.DSN)
+	db, err := dbpkg.NewMySQL(cfg.Database.DSN)
+	if err != nil {
+		logger.Fatal("数据库连接失败", "error", err)
+	}
 	defer db.Close()
 
 	// 创建 Session 管理器（30 分钟过期）
@@ -59,10 +75,17 @@ func main() {
 	// 创建 Admin Handler
 	adminHandler := adminhttp.NewHandler(adminSvc)
 
+	// 创建健康检查 Handler
+	healthHandler := healthhttp.NewHandler(db)
+
 	// 创建路由
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(logger.ChiMiddleware) // 结构化请求日志 + trace_id
 	r.Use(middleware.Recoverer)
+
+	// === 健康检查（无需鉴权，供 K8s/Docker/负载均衡使用）===
+	r.Get("/health", healthHandler.Health)
+	r.Get("/ready", healthHandler.Ready)
 
 	// === MCP SSE 传输端点（对外开放，使用客户端 API Key 鉴权）===
 	r.Get("/sse", mcpHandler.HandleSSE)
@@ -76,9 +99,10 @@ func main() {
 
 	// 启动服务器
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("MCP Gateway 启动，监听 %s", addr)
-	log.Printf("Admin API 路由已注册 (api_key: %s)", cfg.Admin.APIKey)
+	logger.Info("MCP Gateway 启动", "addr", addr)
+	logger.Info("Admin API 路由已注册",
+		"api_key_prefix", cfg.Admin.APIKey[:min(len(cfg.Admin.APIKey), 8)]+"...")
 	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatalf("服务启动失败: %v", err)
+		logger.Fatal("服务启动失败", "error", err)
 	}
 }

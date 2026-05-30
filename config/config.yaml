@@ -8,6 +8,10 @@ admin:
 database:
   dsn: "root:2531qwer@tcp(127.0.0.1:3306)/go-mco-gateway?charset=utf8mb4&parseTime=True"
 
+log:
+  level: "info"    # debug / info / warn / error
+  format: "json"   # json / console (开发环境建议 console)
+
 redis:
   addr: "127.0.0.1:6379"
   password: ""

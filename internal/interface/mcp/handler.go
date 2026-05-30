@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
 	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/jsonrpc"
+	"github.com/sunpuxi/go-mcp-gateway/pkg/logger"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/mcp"
 )
 
@@ -57,7 +57,7 @@ func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 
 	clientID, permissions, err := h.authService.Authenticate(r.Context(), apiKey)
 	if err != nil {
-		log.Printf("[SSE] 鉴权失败: %v", err)
+		logger.Warn("SSE 鉴权失败", "error", err)
 		http.Error(w, "API Key 认证失败: "+err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -80,7 +80,10 @@ func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: /messages?session_id=%s\n\n", session.ID)
 	flusher.Flush()
 
-	log.Printf("[SSE] 新连接 session=%s client=%s tools=%d", session.ID, clientID, len(permissions))
+	logger.Info("SSE 新连接",
+		"session_id", session.ID,
+		"client_id", clientID,
+		"tools", len(permissions))
 
 	for {
 		select {
@@ -92,7 +95,7 @@ func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 
 		case <-r.Context().Done():
-			log.Printf("[SSE] 断开连接 session=%s", session.ID)
+			logger.Info("SSE 断开连接", "session_id", session.ID)
 			session.SSECh = nil
 			close(ch)
 			h.sessionManager.Delete(session.ID)
@@ -179,7 +182,7 @@ func (h *Handler) handleToolsList(sessionID string, req *jsonrpc.Request) {
 
 	output, err := h.mcpService.ListTools(session.Permissions)
 	if err != nil {
-		log.Printf("查询工具列表失败: %v", err)
+		logger.Error("查询工具列表失败", "error", err)
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInternalError, "查询工具列表失败"))
 		return
 	}
@@ -206,7 +209,7 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 		Arguments: callReq.Arguments,
 	}, session.Permissions)
 	if err != nil {
-		log.Printf("工具调用失败: %v", err)
+		logger.Error("工具调用失败", "error", err)
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidParams, err.Error()))
 		return
 	}
@@ -229,19 +232,19 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 func (h *Handler) sendSSE(sessionID string, resp *jsonrpc.Response) {
 	session, ok := h.sessionManager.Get(sessionID)
 	if !ok || session.SSECh == nil {
-		log.Printf("[SSE] 发送失败: session=%s 不存在或无 SSE 通道", sessionID)
+		logger.Warn("SSE 发送失败，session 不存在或通道已关闭", "session_id", sessionID)
 		return
 	}
 
 	data, err := resp.Marshal()
 	if err != nil {
-		log.Printf("[SSE] 响应序列化失败: %v", err)
+		logger.Error("SSE 响应序列化失败", "error", err)
 		return
 	}
 
 	select {
 	case session.SSECh <- data:
 	default:
-		log.Printf("[SSE] 通道已满，丢弃响应 session=%s", sessionID)
+		logger.Warn("SSE 通道已满，丢弃响应", "session_id", sessionID)
 	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
+	"github.com/sunpuxi/go-mcp-gateway/internal/interface/dto"
 )
 
 // Handler 管理后台 HTTP 处理器（入口）
@@ -45,16 +46,16 @@ func (h *Handler) ListClients(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateClient(w http.ResponseWriter, r *http.Request) {
-	var dto appservice.ClientDTO
-	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+	var req dto.ClientDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "JSON 解析失败: " + err.Error()})
 		return
 	}
-	if dto.ClientID == "" || dto.Name == "" {
+	if req.ClientID == "" || req.Name == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "client_id、name 为必填字段"})
 		return
 	}
-	result, err := h.adminService.CreateClient(dto)
+	result, err := h.adminService.CreateClient(req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -74,12 +75,12 @@ func (h *Handler) GenerateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) UpdateClient(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var dto appservice.ClientDTO
-	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+	var req dto.ClientDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "JSON 解析失败: " + err.Error()})
 		return
 	}
-	result, err := h.adminService.UpdateClient(id, dto)
+	result, err := h.adminService.UpdateClient(id, req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

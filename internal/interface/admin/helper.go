@@ -2,9 +2,10 @@ package admin
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/sunpuxi/go-mcp-gateway/pkg/logger"
 )
 
 // writeJSON 统一 JSON 响应
@@ -12,7 +13,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("[admin] JSON 编码失败: %v", err)
+		logger.Error("Admin JSON 编码失败", "error", err)
 	}
 }
 

@@ -11,6 +11,12 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Admin    AdminConfig    `yaml:"admin"`
 	Database DatabaseConfig `yaml:"database"`
+	Log      LogConfig      `yaml:"log"`
+}
+
+type LogConfig struct {
+	Level  string `yaml:"level"`  // debug / info / warn / error
+	Format string `yaml:"format"` // json / console
 }
 
 type AdminConfig struct {
@@ -51,6 +57,20 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("ADMIN_API_KEY"); v != "" {
 		cfg.Admin.APIKey = v
+	}
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		cfg.Log.Level = v
+	}
+	if v := os.Getenv("LOG_FORMAT"); v != "" {
+		cfg.Log.Format = v
+	}
+
+	// 日志默认值
+	if cfg.Log.Level == "" {
+		cfg.Log.Level = "info"
+	}
+	if cfg.Log.Format == "" {
+		cfg.Log.Format = "json"
 	}
 
 	return &cfg, nil

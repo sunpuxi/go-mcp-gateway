@@ -37,6 +37,12 @@ services:
         condition: service_healthy
     expose:
       - "8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
   # =======================================================
   #  React 前端 + Nginx

@@ -8,72 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/entity"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/repository"
-	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
+	"github.com/sunpuxi/go-mcp-gateway/internal/interface/dto"
 )
-
-// ======================== DTOs ========================
-
-// ToolDTO 管理后台工具响应/请求，params 为 ParamRule 数组而非 RawMessage
-type ToolDTO struct {
-	ToolID      int64             `json:"tool_id"`
-	ProjectID   string            `json:"project_id"`
-	Name        string            `json:"name"`
-	Title       string            `json:"title"`
-	Description string            `json:"description"`
-	HTTPMethod  string            `json:"http_method"`
-	URLTemplate string            `json:"url_template"`
-	BaseURL     string            `json:"base_url"`
-	TimeoutMs   int               `json:"timeout_ms"`
-	Params      []entity.ParamRule `json:"params"`
-	Status      int               `json:"status"`
-	CreatedAt   string            `json:"created_at"`
-	UpdatedAt   string            `json:"updated_at"`
-}
-
-// ProjectDTO 项目管理请求/响应
-type ProjectDTO struct {
-	ProjectID   string `json:"project_id"`
-	Name        string `json:"name"`
-	BaseURL     string `json:"base_url"`
-	Description string `json:"description"`
-	Status      int    `json:"status"`
-	CreatedAt   string `json:"created_at,omitempty"`
-	UpdatedAt   string `json:"updated_at,omitempty"`
-}
-
-// ClientDTO 客户端管理响应
-type ClientDTO struct {
-	ClientID     string `json:"client_id"`
-	Name         string `json:"name"`
-	APIKeyPrefix string `json:"api_key_prefix"`
-	Description  string `json:"description"`
-	Status       int    `json:"status"`
-	ToolCount    int    `json:"tool_count"`
-	CreatedAt    string `json:"created_at,omitempty"`
-	UpdatedAt    string `json:"updated_at,omitempty"`
-}
-
-// StatsDTO 仪表盘统计
-type StatsDTO struct {
-	Projects int          `json:"projects"`
-	Tools    int          `json:"tools"`
-	Clients  int          `json:"clients"`
-	Sessions int          `json:"sessions"`
-	SessionList []SessionInfoDTO `json:"session_list"`
-}
-
-// SessionInfoDTO 活跃会话信息
-type SessionInfoDTO struct {
-	ID              string `json:"id"`
-	ClientID        string `json:"client_id"`
-	ProtocolVersion string `json:"protocol_version"`
-	Initialized     bool   `json:"initialized"`
-	CreatedAt       string `json:"created_at"`
-}
-
-// ======================== AdminService ========================
 
 // AdminService 管理后台应用层服务
 type AdminService struct {
@@ -101,7 +40,7 @@ func NewAdminService(
 // ======================== 仪表盘 ========================
 
 // GetStats 获取仪表盘统计数据
-func (s *AdminService) GetStats() (*StatsDTO, error) {
+func (s *AdminService) GetStats() (*dto.StatsDTO, error) {
 	projects, _ := s.projectRepo.Count()
 	tools, _ := s.toolRepo.Count()
 	clients, _ := s.clientRepo.Count(context.Background())
@@ -109,9 +48,9 @@ func (s *AdminService) GetStats() (*StatsDTO, error) {
 
 	// 构建活跃 session 列表
 	sessionEntities := s.sessionManager.List()
-	sessionList := make([]SessionInfoDTO, len(sessionEntities))
+	sessionList := make([]dto.SessionInfoDTO, len(sessionEntities))
 	for i, se := range sessionEntities {
-		sessionList[i] = SessionInfoDTO{
+		sessionList[i] = dto.SessionInfoDTO{
 			ID:              se.ID,
 			ClientID:        se.ClientID,
 			ProtocolVersion: se.ProtocolVersion,
@@ -120,7 +59,7 @@ func (s *AdminService) GetStats() (*StatsDTO, error) {
 		}
 	}
 
-	return &StatsDTO{
+	return &dto.StatsDTO{
 		Projects:    projects,
 		Tools:       tools,
 		Clients:     clients,
@@ -132,14 +71,14 @@ func (s *AdminService) GetStats() (*StatsDTO, error) {
 // ======================== 项目 CRUD ========================
 
 // ListProjects 项目列表
-func (s *AdminService) ListProjects(page, size int) ([]ProjectDTO, int, error) {
+func (s *AdminService) ListProjects(page, size int) ([]dto.ProjectDTO, int, error) {
 	projects, total, err := s.projectRepo.List(page, size)
 	if err != nil {
 		return nil, 0, err
 	}
-	dtos := make([]ProjectDTO, len(projects))
+	dtos := make([]dto.ProjectDTO, len(projects))
 	for i, p := range projects {
-		dtos[i] = ProjectDTO{
+		dtos[i] = dto.ProjectDTO{
 			ProjectID:   p.ProjectID,
 			Name:        p.Name,
 			BaseURL:     p.BaseURL,
@@ -153,18 +92,18 @@ func (s *AdminService) ListProjects(page, size int) ([]ProjectDTO, int, error) {
 }
 
 // CreateProject 新建项目
-func (s *AdminService) CreateProject(dto ProjectDTO) (*ProjectDTO, error) {
+func (s *AdminService) CreateProject(req dto.ProjectDTO) (*dto.ProjectDTO, error) {
 	project := &entity.Project{
-		ProjectID:   dto.ProjectID,
-		Name:        dto.Name,
-		BaseURL:     dto.BaseURL,
-		Description: dto.Description,
-		Status:      dto.Status,
+		ProjectID:   req.ProjectID,
+		Name:        req.Name,
+		BaseURL:     req.BaseURL,
+		Description: req.Description,
+		Status:      req.Status,
 	}
 	if err := s.projectRepo.Create(project); err != nil {
 		return nil, err
 	}
-	return &ProjectDTO{
+	return &dto.ProjectDTO{
 		ProjectID:   project.ProjectID,
 		Name:        project.Name,
 		BaseURL:     project.BaseURL,
@@ -174,7 +113,7 @@ func (s *AdminService) CreateProject(dto ProjectDTO) (*ProjectDTO, error) {
 }
 
 // UpdateProject 更新项目
-func (s *AdminService) UpdateProject(projectID string, dto ProjectDTO) (*ProjectDTO, error) {
+func (s *AdminService) UpdateProject(projectID string, req dto.ProjectDTO) (*dto.ProjectDTO, error) {
 	existing, err := s.projectRepo.FindByID(projectID)
 	if err != nil {
 		return nil, err
@@ -183,16 +122,16 @@ func (s *AdminService) UpdateProject(projectID string, dto ProjectDTO) (*Project
 		return nil, fmt.Errorf("项目不存在: %s", projectID)
 	}
 
-	existing.Name = dto.Name
-	existing.BaseURL = dto.BaseURL
-	existing.Description = dto.Description
-	existing.Status = dto.Status
+	existing.Name = req.Name
+	existing.BaseURL = req.BaseURL
+	existing.Description = req.Description
+	existing.Status = req.Status
 
 	if err := s.projectRepo.Update(existing); err != nil {
 		return nil, err
 	}
 
-	return &ProjectDTO{
+	return &dto.ProjectDTO{
 		ProjectID:   existing.ProjectID,
 		Name:        existing.Name,
 		BaseURL:     existing.BaseURL,
@@ -232,18 +171,18 @@ func (s *AdminService) DeleteProject(projectID string) error {
 // ======================== 工具 CRUD ========================
 
 // ListTools 工具列表
-func (s *AdminService) ListTools(page, size int) ([]ToolDTO, int, error) {
+func (s *AdminService) ListTools(page, size int) ([]dto.ToolDTO, int, error) {
 	tools, total, err := s.toolRepo.ListAll(page, size)
 	if err != nil {
 		return nil, 0, err
 	}
-	dtos := make([]ToolDTO, len(tools))
+	dtos := make([]dto.ToolDTO, len(tools))
 	for i, t := range tools {
 		rules, _ := t.ParseParams()
 		if rules == nil {
 			rules = []entity.ParamRule{}
 		}
-		dtos[i] = ToolDTO{
+		dtos[i] = dto.ToolDTO{
 			ToolID:      t.ToolID,
 			ProjectID:   t.ProjectID,
 			Name:        t.Name,
@@ -263,32 +202,32 @@ func (s *AdminService) ListTools(page, size int) ([]ToolDTO, int, error) {
 }
 
 // CreateTool 新建工具
-func (s *AdminService) CreateTool(dto ToolDTO) (*ToolDTO, error) {
-	paramsJSON, _ := json.Marshal(dto.Params)
+func (s *AdminService) CreateTool(req dto.ToolDTO) (*dto.ToolDTO, error) {
+	paramsJSON, _ := json.Marshal(req.Params)
 	raw := json.RawMessage(paramsJSON)
 
 	tool := &entity.Tool{
-		ProjectID:   dto.ProjectID,
-		Name:        dto.Name,
-		Title:       dto.Title,
-		Description: dto.Description,
-		HTTPMethod:  dto.HTTPMethod,
-		URLTemplate: dto.URLTemplate,
-		TimeoutMs:   dto.TimeoutMs,
+		ProjectID:   req.ProjectID,
+		Name:        req.Name,
+		Title:       req.Title,
+		Description: req.Description,
+		HTTPMethod:  req.HTTPMethod,
+		URLTemplate: req.URLTemplate,
+		TimeoutMs:   req.TimeoutMs,
 		Params:      &raw,
-		Status:      dto.Status,
+		Status:      req.Status,
 	}
 
 	if err := s.toolRepo.Create(tool); err != nil {
 		return nil, err
 	}
 
-	dto.ToolID = tool.ToolID
-	return &dto, nil
+	req.ToolID = tool.ToolID
+	return &req, nil
 }
 
 // UpdateTool 更新工具
-func (s *AdminService) UpdateTool(toolID int64, dto ToolDTO) (*ToolDTO, error) {
+func (s *AdminService) UpdateTool(toolID int64, req dto.ToolDTO) (*dto.ToolDTO, error) {
 	existing, err := s.toolRepo.FindByID(toolID)
 	if err != nil {
 		return nil, err
@@ -297,25 +236,25 @@ func (s *AdminService) UpdateTool(toolID int64, dto ToolDTO) (*ToolDTO, error) {
 		return nil, fmt.Errorf("工具不存在: %d", toolID)
 	}
 
-	paramsJSON, _ := json.Marshal(dto.Params)
+	paramsJSON, _ := json.Marshal(req.Params)
 	raw := json.RawMessage(paramsJSON)
 
-	existing.ProjectID = dto.ProjectID
-	existing.Name = dto.Name
-	existing.Title = dto.Title
-	existing.Description = dto.Description
-	existing.HTTPMethod = dto.HTTPMethod
-	existing.URLTemplate = dto.URLTemplate
-	existing.TimeoutMs = dto.TimeoutMs
+	existing.ProjectID = req.ProjectID
+	existing.Name = req.Name
+	existing.Title = req.Title
+	existing.Description = req.Description
+	existing.HTTPMethod = req.HTTPMethod
+	existing.URLTemplate = req.URLTemplate
+	existing.TimeoutMs = req.TimeoutMs
 	existing.Params = &raw
-	existing.Status = dto.Status
+	existing.Status = req.Status
 
 	if err := s.toolRepo.Update(existing); err != nil {
 		return nil, err
 	}
 
-	dto.ToolID = toolID
-	return &dto, nil
+	req.ToolID = toolID
+	return &req, nil
 }
 
 // DeleteTool 删除工具（级联删除关联权限）
@@ -331,14 +270,14 @@ func (s *AdminService) DeleteTool(toolID int64) error {
 // ======================== 客户端 CRUD ========================
 
 // ListClients 客户端列表
-func (s *AdminService) ListClients(page, size int) ([]ClientDTO, int, error) {
+func (s *AdminService) ListClients(page, size int) ([]dto.ClientDTO, int, error) {
 	clients, toolCounts, total, err := s.clientRepo.ListAll(page, size)
 	if err != nil {
 		return nil, 0, err
 	}
-	dtos := make([]ClientDTO, len(clients))
+	dtos := make([]dto.ClientDTO, len(clients))
 	for i, c := range clients {
-		dtos[i] = ClientDTO{
+		dtos[i] = dto.ClientDTO{
 			ClientID:     c.ClientID,
 			Name:         c.Name,
 			APIKeyPrefix: c.APIKeyPrefix,
@@ -353,26 +292,26 @@ func (s *AdminService) ListClients(page, size int) ([]ClientDTO, int, error) {
 }
 
 // CreateClient 新建客户端（初始无 API Key，Key 需要单独生成）
-func (s *AdminService) CreateClient(dto ClientDTO) (*ClientDTO, error) {
+func (s *AdminService) CreateClient(req dto.ClientDTO) (*dto.ClientDTO, error) {
 	ctx := context.Background()
 	client := &entity.Client{
-		ClientID:     dto.ClientID,
-		Name:         dto.Name,
+		ClientID:     req.ClientID,
+		Name:         req.Name,
 		APIKeyPrefix: "",
 		APIKeyHash:   "",
-		Description:  dto.Description,
-		Status:       dto.Status,
+		Description:  req.Description,
+		Status:       req.Status,
 	}
 	if err := s.clientRepo.Create(ctx, client); err != nil {
 		return nil, err
 	}
-	dto.APIKeyPrefix = ""
-	dto.ToolCount = 0
-	return &dto, nil
+	req.APIKeyPrefix = ""
+	req.ToolCount = 0
+	return &req, nil
 }
 
 // UpdateClient 更新客户端
-func (s *AdminService) UpdateClient(clientID string, dto ClientDTO) (*ClientDTO, error) {
+func (s *AdminService) UpdateClient(clientID string, req dto.ClientDTO) (*dto.ClientDTO, error) {
 	ctx := context.Background()
 	existing, err := s.clientRepo.FindByID(ctx, clientID)
 	if err != nil {
@@ -382,17 +321,17 @@ func (s *AdminService) UpdateClient(clientID string, dto ClientDTO) (*ClientDTO,
 		return nil, fmt.Errorf("客户端不存在: %s", clientID)
 	}
 
-	existing.Name = dto.Name
-	existing.Description = dto.Description
-	existing.Status = dto.Status
+	existing.Name = req.Name
+	existing.Description = req.Description
+	existing.Status = req.Status
 
 	if err := s.clientRepo.Update(ctx, existing); err != nil {
 		return nil, err
 	}
 
-	dto.ClientID = clientID
-	dto.APIKeyPrefix = existing.APIKeyPrefix
-	return &dto, nil
+	req.ClientID = clientID
+	req.APIKeyPrefix = existing.APIKeyPrefix
+	return &req, nil
 }
 
 // DeleteClient 删除客户端
