@@ -43,4 +43,7 @@ type ClientRepository interface {
 
 	// SavePermissions 全量替换客户端权限（先删后插）
 	SavePermissions(ctx context.Context, clientID string, toolIDs []int64) error
+
+	// DeletePermissionsByToolIDs 按工具ID列表批量删除权限
+	DeletePermissionsByToolIDs(ctx context.Context, toolIDs []int64) error
 }

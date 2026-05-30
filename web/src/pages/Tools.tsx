@@ -1,74 +1,46 @@
-import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined } from '@ant-design/icons'
+import { useState, useEffect, useCallback } from 'react'
+import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined, ReloadOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
-
-interface ParamRule {
-  name: string
-  type: string
-  location: string
-  required: boolean
-  default_value: string
-  description: string
-}
-
-interface Tool {
-  tool_id: number
-  name: string
-  title: string
-  description: string
-  project_id: string
-  http_method: string
-  url_template: string
-  timeout_ms: number
-  params: ParamRule[]
-  status: number
-}
-
-const mockTools: Tool[] = [
-  {
-    tool_id: 1, name: 'get_user', title: '获取用户信息',
-    description: '根据用户 ID 获取用户的基本信息',
-    project_id: 'proj_user', http_method: 'GET', url_template: '/users/{user_id}',
-    timeout_ms: 5000, status: 1,
-    params: [
-      { name: 'user_id', type: 'number', location: 'path', required: true, default_value: '', description: '用户 ID' },
-      { name: 'fields', type: 'string', location: 'query', required: false, default_value: '', description: '返回字段' },
-    ],
-  },
-  {
-    tool_id: 2, name: 'get_user_posts', title: '获取用户帖子',
-    description: '根据用户 ID 获取该用户的所有帖子列表',
-    project_id: 'proj_user', http_method: 'GET', url_template: '/users/{user_id}/posts',
-    timeout_ms: 5000, status: 1,
-    params: [{ name: 'user_id', type: 'number', location: 'path', required: true, default_value: '', description: '用户 ID' }],
-  },
-  {
-    tool_id: 3, name: 'create_post', title: '创建帖子',
-    description: '创建一个新的帖子',
-    project_id: 'proj_post', http_method: 'POST', url_template: '/posts',
-    timeout_ms: 5000, status: 1,
-    params: [
-      { name: 'title', type: 'string', location: 'body', required: true, default_value: '', description: '帖子标题' },
-      { name: 'body', type: 'string', location: 'body', required: true, default_value: '', description: '帖子内容' },
-      { name: 'userId', type: 'number', location: 'body', required: true, default_value: '', description: '用户 ID' },
-    ],
-  },
-]
+import { Tool, ToolForm, ParamRule, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
 
 const httpColors: Record<string, string> = {
   GET: 'green', POST: 'blue', PUT: 'orange', DELETE: 'red', PATCH: 'purple',
 }
 
-const projectLabels: Record<string, string> = {
-  proj_user: '用户服务', proj_post: '帖子服务',
-}
-
 function Tools() {
-  const [tools, setTools] = useState<Tool[]>(mockTools)
+  const [tools, setTools] = useState<Tool[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tool | null>(null)
+  const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [toolsData, projectsData] = await Promise.all([getTools(), getProjects()])
+      setTools(toolsData)
+      setProjects(projectsData)
+    } catch (e: unknown) {
+      toast.error('加载数据失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const projectOptions = projects
+    .filter(p => p.status === 1)
+    .map(p => ({ value: p.project_id, label: p.name }))
+
+  const getProjectName = (projectId: string) => {
+    return projects.find(p => p.project_id === projectId)?.name || projectId
+  }
 
   const columns = [
     {
@@ -87,7 +59,7 @@ function Tools() {
     },
     {
       title: '所属项目', dataIndex: 'project_id', key: 'project_id', width: 110,
-      render: (v: string) => <Tag color="purple">{projectLabels[v] || v}</Tag>,
+      render: (v: string) => <Tag color="purple">{getProjectName(v)}</Tag>,
     },
     {
       title: '方法', dataIndex: 'http_method', key: 'http_method', width: 90, align: 'center' as const,
@@ -104,7 +76,7 @@ function Tools() {
     {
       title: '参数', key: 'params', width: 70, align: 'center' as const,
       render: (_: unknown, r: Tool) => (
-        <Tag color={r.params.length > 0 ? 'blue' : 'default'}>{r.params.length} 个</Tag>
+        <Tag color={r.params && r.params.length > 0 ? 'blue' : 'default'}>{r.params ? r.params.length : 0} 个</Tag>
       ),
     },
     {
@@ -128,7 +100,7 @@ function Tools() {
           </Tooltip>
           <Popconfirm
             title="确定删除？"
-            description={`将删除工具「${record.name}」`}
+            description={`将删除工具「${record.name}」及其授权信息`}
             onConfirm={() => handleDelete(record.tool_id)}
             okText="确认"
             cancelText="取消"
@@ -146,57 +118,86 @@ function Tools() {
   const openCreate = () => {
     setEditing(null)
     form.setFieldsValue({
-      name: '', title: '', description: '', project_id: 'proj_user',
-      http_method: 'GET', url_template: '', timeout_ms: 5000, status: 1, params: [],
+      name: '', title: '', description: '', project_id: projectOptions[0]?.value || '',
+      http_method: 'GET', url_template: '', timeout_ms: 5000, status: true, params: [],
     })
     setOpen(true)
   }
 
   const openEdit = (t: Tool) => {
     setEditing(t)
-    form.setFieldsValue({ ...t })
+    form.setFieldsValue({ ...t, status: t.status === 1 })
     setOpen(true)
   }
 
   const handleSave = async () => {
     const values = await form.validateFields()
-    if (editing) {
-      setTools(tools.map(t => t.tool_id === editing.tool_id ? { ...t, ...values } : t))
-      toast.success('工具更新成功')
-    } else {
-      setTools([...tools, { ...values, tool_id: Math.max(...tools.map(t => t.tool_id), 0) + 1 }])
-      toast.success('工具创建成功')
+    setSaving(true)
+    try {
+      const payload: ToolForm = {
+        project_id: values.project_id,
+        name: values.name,
+        title: values.title,
+        description: values.description || '',
+        http_method: values.http_method,
+        url_template: values.url_template,
+        timeout_ms: values.timeout_ms,
+        params: values.params || [],
+        status: values.status ? 1 : 0,
+      }
+      if (editing) {
+        await updateTool(editing.tool_id, payload)
+        toast.success('工具更新成功')
+      } else {
+        await createTool(payload)
+        toast.success('工具创建成功')
+      }
+      setOpen(false)
+      await loadData()
+    } catch (e: unknown) {
+      toast.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setSaving(false)
     }
-    setOpen(false)
   }
 
-  const handleDelete = (id: number) => {
-    setTools(tools.filter(t => t.tool_id !== id))
-    toast.success('工具已删除')
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteTool(id)
+      toast.success('工具已删除')
+      await loadData()
+    } catch (e: unknown) {
+      toast.error('删除失败: ' + (e instanceof Error ? e.message : String(e)))
+    }
   }
 
   return (
     <div>
       <div className="page-header">
         <h2>工具管理</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建工具</Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>刷新</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建工具</Button>
+        </Space>
       </div>
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Table
-          rowKey="tool_id"
-          columns={columns}
-          dataSource={tools}
-          size="middle"
-          scroll={{ x: 1100 }}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 个工具`,
-          }}
-          locale={{ emptyText: '暂无工具，点击右上角"新建工具"开始配置 HTTP 接口的协议转换' }}
-          rowClassName={(_, index) => index % 2 === 0 ? 'ant-table-row-striped' : ''}
-        />
+        <Spin spinning={loading}>
+          <Table
+            rowKey="tool_id"
+            columns={columns}
+            dataSource={tools}
+            size="middle"
+            scroll={{ x: 1100 }}
+            pagination={{
+              pageSize: 20,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 个工具`,
+            }}
+            locale={{ emptyText: '暂无工具，点击右上角"新建工具"开始配置 HTTP 接口的协议转换' }}
+            rowClassName={(_, index) => index % 2 === 0 ? 'ant-table-row-striped' : ''}
+          />
+        </Spin>
       </Card>
 
       <Modal
@@ -207,14 +208,15 @@ function Tools() {
         onCancel={() => setOpen(false)}
         okText="保存"
         cancelText="取消"
+        confirmLoading={saving}
         destroyOnClose
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Space.Compact block>
-            <Form.Item name="name" label="工具名称" rules={[{ required: true }]} style={{ flex: 1 }}>
+            <Form.Item name="name" label="工具名称" rules={[{ required: true, message: '请输入工具名称' }]} style={{ flex: 1 }}>
               <Input placeholder="get_user" disabled={!!editing} />
             </Form.Item>
-            <Form.Item name="title" label="标题" rules={[{ required: true }]} style={{ flex: 1 }}>
+            <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]} style={{ flex: 1 }}>
               <Input placeholder="获取用户信息" />
             </Form.Item>
           </Space.Compact>
@@ -222,11 +224,8 @@ function Tools() {
             <Input.TextArea rows={2} />
           </Form.Item>
           <Space.Compact block>
-            <Form.Item name="project_id" label="所属项目" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Select options={[
-                { value: 'proj_user', label: '用户服务' },
-                { value: 'proj_post', label: '帖子服务' },
-              ]} />
+            <Form.Item name="project_id" label="所属项目" rules={[{ required: true, message: '请选择项目' }]} style={{ flex: 1 }}>
+              <Select options={projectOptions} placeholder="选择项目" />
             </Form.Item>
             <Form.Item name="http_method" label="HTTP 方法" rules={[{ required: true }]} style={{ flex: 1 }}>
               <Select options={['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m }))} />
@@ -235,8 +234,11 @@ function Tools() {
               <InputNumber min={100} max={60000} style={{ width: '100%' }} />
             </Form.Item>
           </Space.Compact>
-          <Form.Item name="url_template" label="URL 模板" rules={[{ required: true }]}>
+          <Form.Item name="url_template" label="URL 模板" rules={[{ required: true, message: '请输入 URL 模板' }]}>
             <Input placeholder="/users/{user_id}" />
+          </Form.Item>
+          <Form.Item name="status" label="启用" valuePropName="checked">
+            <Switch />
           </Form.Item>
 
           <Form.List name="params">
@@ -261,7 +263,7 @@ function Tools() {
                     columns={[
                       {
                         title: '参数名', render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'name']} noStyle rules={[{ required: true }]}>
+                          <Form.Item name={[f.name, 'name']} noStyle rules={[{ required: true, message: '必填' }]}>
                             <Input placeholder="参数名" size="small" />
                           </Form.Item>
                         ),
@@ -275,7 +277,7 @@ function Tools() {
                       },
                       {
                         title: '位置', width: 100, render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'location']} noStyle rules={[{ required: true }]}>
+                          <Form.Item name={[f.name, 'location']} noStyle rules={[{ required: true, message: '必填' }]}>
                             <Select size="small" options={['path', 'query', 'body', 'header'].map(v => ({ value: v, label: v }))} style={{ width: 85 }} />
                           </Form.Item>
                         ),

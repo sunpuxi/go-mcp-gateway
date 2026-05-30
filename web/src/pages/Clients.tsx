@@ -1,29 +1,35 @@
-import { useState } from 'react'
-import { Table, Button, Modal, Form, Input, Space, Popconfirm, Tag, Tooltip, Card } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, TeamOutlined } from '@ant-design/icons'
+import { useState, useEffect, useCallback } from 'react'
+import { Table, Button, Modal, Form, Input, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, TeamOutlined, ReloadOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
-
-interface Client {
-  client_id: string
-  name: string
-  api_key_prefix: string
-  description: string
-  status: number
-  tool_count: number
-}
-
-const mockClients: Client[] = [
-  { client_id: 'cli_bigdata', name: '大数据项目组', api_key_prefix: 'sk-bigdata', description: '大数据组，用于用户数据查询', status: 1, tool_count: 2 },
-  { client_id: 'cli_payment', name: '支付项目组', api_key_prefix: 'sk-payment', description: '支付组，可创建帖子数据', status: 1, tool_count: 1 },
-]
+import { Client, ClientForm, getClients, createClient, updateClient, deleteClient, generateApiKey } from '../api'
 
 function Clients() {
-  const [clients, setClients] = useState<Client[]>(mockClients)
+  const [clients, setClients] = useState<Client[]>([])
+  const [loading, setLoading] = useState(false)
   const [openForm, setOpenForm] = useState(false)
   const [openKeyModal, setOpenKeyModal] = useState(false)
   const [newApiKey, setNewApiKey] = useState('')
   const [editing, setEditing] = useState<Client | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [form] = Form.useForm()
+
+  const loadClients = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await getClients()
+      setClients(data)
+    } catch (e: unknown) {
+      toast.error('加载客户端列表失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadClients()
+  }, [loadClients])
 
   const columns = [
     {
@@ -44,8 +50,8 @@ function Clients() {
       render: (v: string) => (
         <Tooltip title="完整 Key 仅在生成时展示一次">
           <code style={{ fontSize: 13, background: '#f5f5f5', padding: '3px 8px', borderRadius: 4 }}>
-            <span style={{ fontWeight: 600, color: '#1677ff' }}>{v}</span>
-            <span style={{ color: '#999' }}>-********</span>
+            <span style={{ fontWeight: 600, color: '#1677ff' }}>{v || '未生成'}</span>
+            {v && <span style={{ color: '#999' }}>-********</span>}
           </code>
         </Tooltip>
       ),
@@ -80,7 +86,7 @@ function Clients() {
       render: (_: unknown, record: Client) => (
         <Space size="small">
           <Tooltip title="生成新 API Key">
-            <Button size="small" type="primary" icon={<KeyOutlined />} onClick={() => handleGenerateKey(record)}>
+            <Button size="small" type="primary" icon={<KeyOutlined />} loading={generating} onClick={() => handleGenerateKey(record)}>
               生成 Key
             </Button>
           </Tooltip>
@@ -107,59 +113,92 @@ function Clients() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
+    form.setFieldsValue({ status: true })
     setOpenForm(true)
   }
 
   const openEdit = (c: Client) => {
     setEditing(c)
-    form.setFieldsValue(c)
+    form.setFieldsValue({ ...c, status: c.status === 1 })
     setOpenForm(true)
   }
 
-  const handleGenerateKey = (client: Client) => {
-    const random = Array.from({ length: 20 }, () => Math.random().toString(36)[2]).join('')
-    setNewApiKey(`${client.api_key_prefix}-${random}`)
-    setOpenKeyModal(true)
+  const handleGenerateKey = async (client: Client) => {
+    setGenerating(true)
+    try {
+      const res = await generateApiKey(client.client_id)
+      setNewApiKey(res.api_key)
+      setOpenKeyModal(true)
+      await loadClients()
+    } catch (e: unknown) {
+      toast.error('生成 Key 失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setGenerating(false)
+    }
   }
 
   const handleSave = async () => {
     const values = await form.validateFields()
-    if (editing) {
-      setClients(clients.map(c => c.client_id === editing.client_id ? { ...c, ...values } : c))
-      toast.success('客户端更新成功')
-    } else {
-      setClients([...clients, { ...values, api_key_prefix: `sk-${values.client_id.replace('cli_', '')}`, tool_count: 0 }])
-      toast.success('客户端创建成功')
+    setSaving(true)
+    try {
+      const payload: ClientForm = {
+        client_id: editing?.client_id || values.client_id,
+        name: values.name,
+        description: values.description || '',
+        status: values.status ? 1 : 0,
+      }
+      if (editing) {
+        await updateClient(editing.client_id, payload)
+        toast.success('客户端更新成功')
+      } else {
+        await createClient(payload)
+        toast.success('客户端创建成功')
+      }
+      setOpenForm(false)
+      await loadClients()
+    } catch (e: unknown) {
+      toast.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setSaving(false)
     }
-    setOpenForm(false)
   }
 
-  const handleDelete = (id: string) => {
-    setClients(clients.filter(c => c.client_id !== id))
-    toast.success('客户端已删除')
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteClient(id)
+      toast.success('客户端已删除')
+      await loadClients()
+    } catch (e: unknown) {
+      toast.error('删除失败: ' + (e instanceof Error ? e.message : String(e)))
+    }
   }
 
   return (
     <div>
       <div className="page-header">
         <h2>客户端管理</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建客户端</Button>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={loadClients} loading={loading}>刷新</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建客户端</Button>
+        </Space>
       </div>
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Table
-          rowKey="client_id"
-          columns={columns}
-          dataSource={clients}
-          size="middle"
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: true,
-            showTotal: (total) => `共 ${total} 个客户端`,
-          }}
-          locale={{ emptyText: '暂无客户端，点击右上角"新建客户端"创建一个项目组' }}
-          rowClassName={(_, index) => index % 2 === 0 ? 'ant-table-row-striped' : ''}
-        />
+        <Spin spinning={loading}>
+          <Table
+            rowKey="client_id"
+            columns={columns}
+            dataSource={clients}
+            size="middle"
+            pagination={{
+              pageSize: 20,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 个客户端`,
+            }}
+            locale={{ emptyText: '暂无客户端，点击右上角"新建客户端"创建一个项目组' }}
+            rowClassName={(_, index) => index % 2 === 0 ? 'ant-table-row-striped' : ''}
+          />
+        </Spin>
       </Card>
 
       <Modal
@@ -169,18 +208,22 @@ function Clients() {
         onCancel={() => setOpenForm(false)}
         okText="保存"
         cancelText="取消"
+        confirmLoading={saving}
         destroyOnClose
         width={480}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="client_id" label="Client ID" rules={[{ required: true }]}>
+          <Form.Item name="client_id" label="Client ID" rules={[{ required: true, message: '请输入 Client ID' }]}>
             <Input disabled={!!editing} placeholder="如 cli_bigdata" />
           </Form.Item>
-          <Form.Item name="name" label="客户端名称" rules={[{ required: true }]}>
+          <Form.Item name="name" label="客户端名称" rules={[{ required: true, message: '请输入客户端名称' }]}>
             <Input placeholder="如 大数据项目组" />
           </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea rows={2} placeholder="客户端用途说明" />
+          </Form.Item>
+          <Form.Item name="status" label="启用" valuePropName="checked">
+            <Switch />
           </Form.Item>
         </Form>
       </Modal>

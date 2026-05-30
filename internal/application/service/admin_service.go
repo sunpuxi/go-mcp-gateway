@@ -177,9 +177,32 @@ func (s *AdminService) UpdateProject(projectID string, dto ProjectDTO) (*Project
 	}, nil
 }
 
-// DeleteProject 删除项目
+// DeleteProject 删除项目（级联删除关联的工具及权限）
 func (s *AdminService) DeleteProject(projectID string) error {
-	return s.projectRepo.Delete(projectID)
+	// 1. 查找项目下的所有工具ID
+	toolIDs, err := s.toolRepo.FindToolIDsByProjectID(projectID)
+	if err != nil {
+		return fmt.Errorf("查询项目工具失败: %w", err)
+	}
+
+	// 2. 删除这些工具的客户端授权信息
+	if len(toolIDs) > 0 {
+		if err := s.clientRepo.DeletePermissionsByToolIDs(context.Background(), toolIDs); err != nil {
+			return fmt.Errorf("删除工具授权信息失败: %w", err)
+		}
+	}
+
+	// 3. 删除项目下的所有工具
+	if err := s.toolRepo.DeleteByProjectID(projectID); err != nil {
+		return fmt.Errorf("删除项目工具失败: %w", err)
+	}
+
+	// 4. 删除项目自身
+	if err := s.projectRepo.Delete(projectID); err != nil {
+		return fmt.Errorf("删除项目失败: %w", err)
+	}
+
+	return nil
 }
 
 // ======================== 工具 CRUD ========================
@@ -271,8 +294,13 @@ func (s *AdminService) UpdateTool(toolID int64, dto ToolDTO) (*ToolDTO, error) {
 	return &dto, nil
 }
 
-// DeleteTool 删除工具
+// DeleteTool 删除工具（级联删除关联权限）
 func (s *AdminService) DeleteTool(toolID int64) error {
+	// 1. 删除该工具的客户端授权信息
+	if err := s.clientRepo.DeletePermissionsByToolIDs(context.Background(), []int64{toolID}); err != nil {
+		return fmt.Errorf("删除工具授权信息失败: %w", err)
+	}
+	// 2. 删除工具自身
 	return s.toolRepo.Delete(toolID)
 }
 

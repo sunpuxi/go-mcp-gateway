@@ -142,6 +142,19 @@ func (r *ToolRepo) Delete(toolID int64) error {
 	return err
 }
 
+// DeleteByProjectID 按项目ID删除所有工具
+func (r *ToolRepo) DeleteByProjectID(projectID string) error {
+	_, err := r.db.Exec("DELETE FROM tools WHERE project_id=?", projectID)
+	return err
+}
+
+// FindToolIDsByProjectID 按项目ID查询所有工具ID
+func (r *ToolRepo) FindToolIDsByProjectID(projectID string) ([]int64, error) {
+	var ids []int64
+	err := r.db.Select(&ids, "SELECT tool_id FROM tools WHERE project_id=?", projectID)
+	return ids, err
+}
+
 // Count 总数
 func (r *ToolRepo) Count() (int, error) {
 	var count int

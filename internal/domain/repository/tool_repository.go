@@ -27,6 +27,12 @@ type ToolAdminRepository interface {
 	// Delete 删除工具
 	Delete(toolID int64) error
 
+	// DeleteByProjectID 按项目ID删除所有工具
+	DeleteByProjectID(projectID string) error
+
+	// FindToolIDsByProjectID 按项目ID查询所有工具ID
+	FindToolIDsByProjectID(projectID string) ([]int64, error)
+
 	// Count 总数
 	Count() (int, error)
 }

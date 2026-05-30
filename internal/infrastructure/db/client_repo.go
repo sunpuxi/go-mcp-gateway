@@ -192,3 +192,16 @@ func (r *ClientRepo) SavePermissions(ctx context.Context, clientID string, toolI
 
 	return tx.Commit()
 }
+
+// DeletePermissionsByToolIDs 按工具ID列表批量删除权限
+func (r *ClientRepo) DeletePermissionsByToolIDs(ctx context.Context, toolIDs []int64) error {
+	if len(toolIDs) == 0 {
+		return nil
+	}
+	query, args, err := sqlx.In("DELETE FROM client_tool_permissions WHERE tool_id IN (?)", toolIDs)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, r.db.Rebind(query), args...)
+	return err
+}
