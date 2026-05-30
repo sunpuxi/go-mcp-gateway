@@ -62,12 +62,9 @@ $sb = New-Object System.Text.StringBuilder
 [void]$sb.AppendLine("echo ''")
 [void]$sb.AppendLine("echo '[REMOTE] deploy done.'")
 
-$tempFile = "$env:TEMP\go-mcp-deploy.sh"
-[System.IO.File]::WriteAllText($tempFile, $sb.ToString())
-
-Get-Content -Raw $tempFile | ssh -p $REMOTE_PORT "$REMOTE_USER@$REMOTE_HOST" "bash -s"
-
-Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+# Convert CRLF to LF for Linux bash
+$bashScript = $sb.ToString() -replace "`r`n", "`n"
+$bashScript | ssh -p $REMOTE_PORT "$REMOTE_USER@$REMOTE_HOST" "bash -s"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
