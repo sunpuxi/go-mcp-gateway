@@ -85,6 +85,17 @@ func (sm *SessionManager) ActiveCount() int {
 	return len(sm.sessions)
 }
 
+// List 返回当前所有活跃会话
+func (sm *SessionManager) List() []*entity.Session {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	result := make([]*entity.Session, 0, len(sm.sessions))
+	for _, s := range sm.sessions {
+		result = append(result, s)
+	}
+	return result
+}
+
 // cleanupLoop 定期清理过期会话
 func (sm *SessionManager) cleanupLoop() {
 	ticker := time.NewTicker(sm.ttl / 2)

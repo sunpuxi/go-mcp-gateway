@@ -57,10 +57,20 @@ type ClientDTO struct {
 
 // StatsDTO 仪表盘统计
 type StatsDTO struct {
-	Projects int `json:"projects"`
-	Tools    int `json:"tools"`
-	Clients  int `json:"clients"`
-	Sessions int `json:"sessions"`
+	Projects int          `json:"projects"`
+	Tools    int          `json:"tools"`
+	Clients  int          `json:"clients"`
+	Sessions int          `json:"sessions"`
+	SessionList []SessionInfoDTO `json:"session_list"`
+}
+
+// SessionInfoDTO 活跃会话信息
+type SessionInfoDTO struct {
+	ID              string `json:"id"`
+	ClientID        string `json:"client_id"`
+	ProtocolVersion string `json:"protocol_version"`
+	Initialized     bool   `json:"initialized"`
+	CreatedAt       string `json:"created_at"`
 }
 
 // ======================== AdminService ========================
@@ -97,11 +107,25 @@ func (s *AdminService) GetStats() (*StatsDTO, error) {
 	clients, _ := s.clientRepo.Count(context.Background())
 	sessions := s.sessionManager.ActiveCount()
 
+	// 构建活跃 session 列表
+	sessionEntities := s.sessionManager.List()
+	sessionList := make([]SessionInfoDTO, len(sessionEntities))
+	for i, se := range sessionEntities {
+		sessionList[i] = SessionInfoDTO{
+			ID:              se.ID,
+			ClientID:        se.ClientID,
+			ProtocolVersion: se.ProtocolVersion,
+			Initialized:     se.Initialized,
+			CreatedAt:       se.CreatedAt.Format("2006-01-02 15:04:05"),
+		}
+	}
+
 	return &StatsDTO{
-		Projects: projects,
-		Tools:    tools,
-		Clients:  clients,
-		Sessions: sessions,
+		Projects:    projects,
+		Tools:       tools,
+		Clients:     clients,
+		Sessions:    sessions,
+		SessionList: sessionList,
 	}, nil
 }
 

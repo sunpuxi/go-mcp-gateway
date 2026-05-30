@@ -75,11 +75,20 @@ export interface ClientForm {
   status: number
 }
 
+export interface SessionInfo {
+  id: string
+  client_id: string
+  protocol_version: string
+  initialized: boolean
+  created_at: string
+}
+
 export interface Stats {
   projects: number
   tools: number
   clients: number
   sessions: number
+  session_list: SessionInfo[]
 }
 
 export interface ApiKeyResponse {
