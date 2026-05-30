@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// responseWriter 包装 http.ResponseWriter，捕获状态码
+// responseWriter 包装 http.ResponseWriter，捕获状态码，并透传 Flusher 以支持 SSE
 type responseWriter struct {
 	http.ResponseWriter
 	status int
@@ -16,6 +16,14 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+// Flush 实现 http.Flusher，支持 SSE 等流式传输
+// 嵌入接口类型不会自动提升具体值的额外方法，必须显式代理
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // ChiMiddleware 返回一个 Chi 兼容的 HTTP 日志中间件
