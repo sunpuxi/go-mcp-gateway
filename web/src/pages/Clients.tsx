@@ -1,216 +1,206 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Power, PowerOff, X, Copy, KeyRound, Check } from 'lucide-react'
-import { getClients, createClient, updateClient, deleteClient, generateApiKey, type Client, type ClientForm } from '../api'
-import { useToast } from '../components/Toast'
-import { Confirm } from '../components/Confirm'
-import { TableSkeleton } from '../components/Skeleton'
+import { useState } from 'react'
+import { Table, Button, Modal, Form, Input, Space, Popconfirm, Tag, Tooltip, Card } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined, TeamOutlined } from '@ant-design/icons'
+import toast from 'react-hot-toast'
 
-const emptyForm: ClientForm = { client_id: '', name: '', description: '', status: 1 }
+interface Client {
+  client_id: string
+  name: string
+  api_key_prefix: string
+  description: string
+  status: number
+  tool_count: number
+}
+
+const mockClients: Client[] = [
+  { client_id: 'cli_bigdata', name: '大数据项目组', api_key_prefix: 'sk-bigdata', description: '大数据组，用于用户数据查询', status: 1, tool_count: 2 },
+  { client_id: 'cli_payment', name: '支付项目组', api_key_prefix: 'sk-payment', description: '支付组，可创建帖子数据', status: 1, tool_count: 1 },
+]
 
 function Clients() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const [showKeyModal, setShowKeyModal] = useState(false)
+  const [clients, setClients] = useState<Client[]>(mockClients)
+  const [openForm, setOpenForm] = useState(false)
+  const [openKeyModal, setOpenKeyModal] = useState(false)
   const [newApiKey, setNewApiKey] = useState('')
   const [editing, setEditing] = useState<Client | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [form, setForm] = useState({ ...emptyForm })
-  const [copied, setCopied] = useState(false)
-  const { toast } = useToast()
+  const [form] = Form.useForm()
 
-  const fetchClients = useCallback(() => {
-    setLoading(true)
-    setError('')
-    getClients()
-      .then(data => { setClients(data); setLoading(false) })
-      .catch(err => { setError(err.message); setLoading(false) })
-  }, [])
+  const columns = [
+    {
+      title: 'Client ID', dataIndex: 'client_id', key: 'client_id', width: 140,
+      render: (v: string) => <Tag color="purple" style={{ fontSize: 13 }}>{v}</Tag>,
+    },
+    {
+      title: '客户端名称', dataIndex: 'name', key: 'name', width: 180,
+      render: (v: string) => (
+        <Space>
+          <TeamOutlined style={{ color: '#1677ff' }} />
+          <strong>{v}</strong>
+        </Space>
+      ),
+    },
+    {
+      title: 'API Key', dataIndex: 'api_key_prefix', key: 'api_key_prefix', width: 180,
+      render: (v: string) => (
+        <Tooltip title="完整 Key 仅在生成时展示一次">
+          <code style={{ fontSize: 13, background: '#f5f5f5', padding: '3px 8px', borderRadius: 4 }}>
+            <span style={{ fontWeight: 600, color: '#1677ff' }}>{v}</span>
+            <span style={{ color: '#999' }}>-********</span>
+          </code>
+        </Tooltip>
+      ),
+    },
+    {
+      title: '描述', dataIndex: 'description', key: 'description', width: 240,
+      ellipsis: { showTitle: false },
+      render: (v: string) => (
+        <Tooltip title={v}>
+          <span style={{ color: '#666' }}>{v || '-'}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      title: '已授权工具', dataIndex: 'tool_count', key: 'tool_count', width: 100, align: 'center',
+      render: (v: number) => (
+        <Tag color={v > 0 ? 'blue' : 'default'} style={{ minWidth: 32, textAlign: 'center' }}>
+          {v} 个
+        </Tag>
+      ),
+    },
+    {
+      title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center',
+      render: (s: number) => (
+        <Tag color={s === 1 ? 'success' : 'error'} style={{ minWidth: 48, textAlign: 'center' }}>
+          {s === 1 ? '启用' : '禁用'}
+        </Tag>
+      ),
+    },
+    {
+      title: '操作', key: 'action', width: 200, align: 'center',
+      render: (_: unknown, record: Client) => (
+        <Space size="small">
+          <Tooltip title="生成新 API Key">
+            <Button size="small" type="primary" icon={<KeyOutlined />} onClick={() => handleGenerateKey(record)}>
+              生成 Key
+            </Button>
+          </Tooltip>
+          <Tooltip title="编辑">
+            <Button size="small" ghost icon={<EditOutlined />} onClick={() => openEdit(record)} />
+          </Tooltip>
+          <Popconfirm
+            title="确定删除？"
+            description={`将删除客户端「${record.name}」`}
+            onConfirm={() => handleDelete(record.client_id)}
+            okText="确认"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Tooltip title="删除">
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
-  useEffect(() => { fetchClients() }, [fetchClients])
+  const openCreate = () => {
+    setEditing(null)
+    form.resetFields()
+    setOpenForm(true)
+  }
 
-  const openCreate = () => { setEditing(null); setForm({ ...emptyForm }); setShowForm(true) }
-  const openEdit = (c: Client) => { setEditing(c); setForm({ client_id: c.client_id, name: c.name, description: c.description, status: c.status }); setShowForm(true) }
+  const openEdit = (c: Client) => {
+    setEditing(c)
+    form.setFieldsValue(c)
+    setOpenForm(true)
+  }
 
-  const handleGenerateKey = async (client: Client) => {
-    try {
-      const result = await generateApiKey(client.client_id)
-      setNewApiKey(result.api_key || '')
-      setCopied(false)
-      setShowKeyModal(true)
-      fetchClients()
-    } catch (err: any) {
-      toast('error', '生成失败: ' + err.message)
-    }
+  const handleGenerateKey = (client: Client) => {
+    const random = Array.from({ length: 20 }, () => Math.random().toString(36)[2]).join('')
+    setNewApiKey(`${client.api_key_prefix}-${random}`)
+    setOpenKeyModal(true)
   }
 
   const handleSave = async () => {
-    if (!form.client_id.trim() || !form.name.trim()) {
-      toast('warning', '请填写必填字段')
-      return
+    const values = await form.validateFields()
+    if (editing) {
+      setClients(clients.map(c => c.client_id === editing.client_id ? { ...c, ...values } : c))
+      toast.success('客户端更新成功')
+    } else {
+      setClients([...clients, { ...values, api_key_prefix: `sk-${values.client_id.replace('cli_', '')}`, tool_count: 0 }])
+      toast.success('客户端创建成功')
     }
-    setSaving(true)
-    try {
-      if (editing) {
-        const { client_id, ...data } = form
-        const updated = await updateClient(editing.client_id, data)
-        setClients(clients.map(c => c.client_id === editing.client_id ? updated : c))
-        toast('success', '客户端已更新')
-      } else {
-        const created = await createClient(form)
-        setClients([...clients, created])
-        toast('success', '客户端已创建')
-      }
-      setShowForm(false)
-    } catch (err: any) {
-      toast('error', '保存失败: ' + err.message)
-    } finally {
-      setSaving(false)
-    }
+    setOpenForm(false)
   }
 
-  const handleDelete = async () => {
-    if (!confirmDelete) return
-    try {
-      await deleteClient(confirmDelete)
-      setClients(clients.filter(c => c.client_id !== confirmDelete))
-      toast('success', '客户端已删除')
-    } catch (err: any) {
-      toast('error', '删除失败: ' + err.message)
-    }
-    setConfirmDelete(null)
-  }
-
-  const toggleStatus = async (c: Client) => {
-    try {
-      const updated = await updateClient(c.client_id, { status: c.status === 1 ? 0 : 1 })
-      setClients(clients.map(x => x.client_id === c.client_id ? updated : x))
-      toast('success', `客户端已${c.status === 1 ? '禁用' : '启用'}`)
-    } catch (err: any) {
-      toast('error', '操作失败: ' + err.message)
-    }
-  }
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(newApiKey).then(() => {
-      setCopied(true)
-      toast('success', '已复制到剪贴板')
-    })
-  }
-
-  if (error) {
-    return (
-      <div>
-        <div className="page-header"><h1>客户端管理</h1><button className="btn btn-outline" onClick={fetchClients}>重试</button></div>
-        <div className="table-card" style={{ padding: '40px 16px', textAlign: 'center', color: '#c62828', fontSize: 14 }}>加载失败：{error}</div>
-      </div>
-    )
+  const handleDelete = (id: string) => {
+    setClients(clients.filter(c => c.client_id !== id))
+    toast.success('客户端已删除')
   }
 
   return (
     <div>
       <div className="page-header">
-        <h1>客户端管理</h1>
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={16} />新建客户端</button>
+        <h2>客户端管理</h2>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建客户端</Button>
       </div>
 
-      <div className="table-card">
-        {loading ? <TableSkeleton rows={5} cols={7} /> : clients.length === 0 ? (
-          <div className="empty-state"><KeyRound size={40} /><p>暂无客户端</p><p className="empty-hint">点击「新建客户端」添加调用方</p></div>
-        ) : (
-          <table>
-            <thead>
-              <tr><th>Client ID</th><th>名称</th><th>Key 前缀</th><th>已授权工具</th><th>状态</th><th>创建时间</th><th>操作</th></tr>
-            </thead>
-            <tbody>
-              {clients.map(c => (
-                <tr key={c.client_id}>
-                  <td><strong>{c.client_id}</strong></td>
-                  <td>{c.name}</td>
-                  <td><code style={{ background: '#f5f5f5', padding: '2px 6px', borderRadius: 4, fontSize: 13 }}>{c.api_key_prefix || 'sk-***'}-***</code></td>
-                  <td>{c.tool_count != null ? c.tool_count : '-'}</td>
-                  <td><span className={`status-badge ${c.status === 1 ? 'active' : 'inactive'}`}>{c.status === 1 ? '启用' : '禁用'}</span></td>
-                  <td style={{ fontSize: 13, color: '#7f8c9b' }}>{c.created_at ? new Date(c.created_at).toLocaleString('zh-CN') : '-'}</td>
-                  <td>
-                    <button className="btn btn-sm btn-primary" style={{ marginRight: 4 }} onClick={() => handleGenerateKey(c)}>
-                      <KeyRound size={12} />生成 Key
-                    </button>
-                    <button className="btn-icon" onClick={() => toggleStatus(c)} title="切换状态">
-                      {c.status === 1 ? <PowerOff size={15} /> : <Power size={15} />}
-                    </button>
-                    <button className="btn-icon" onClick={() => openEdit(c)} title="编辑"><Pencil size={15} /></button>
-                    <button className="btn-icon" onClick={() => setConfirmDelete(c.client_id)} title="删除"><Trash2 size={15} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table
+          rowKey="client_id"
+          columns={columns}
+          dataSource={clients}
+          size="middle"
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 个客户端`,
+          }}
+          locale={{ emptyText: '暂无客户端，点击右上角"新建客户端"创建一个项目组' }}
+          rowClassName={(_, index) => index % 2 === 0 ? 'ant-table-row-striped' : ''}
+        />
+      </Card>
 
-      {showForm && (
-        <div className="form-overlay" onClick={() => setShowForm(false)}>
-          <div className="form-panel" onClick={e => e.stopPropagation()}>
-            <div className="form-panel-header">
-              {editing ? '编辑客户端' : '新建客户端'}
-              <button className="btn-icon" onClick={() => setShowForm(false)}><X size={16} /></button>
-            </div>
-            <div className="form-panel-body">
-              <div className="form-group">
-                <label>Client ID <span style={{ color: '#e53935' }}>*</span></label>
-                <input value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })} disabled={!!editing} placeholder="如 cli_bigdata" />
-              </div>
-              <div className="form-group">
-                <label>名称 <span style={{ color: '#e53935' }}>*</span></label>
-                <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="如 大数据项目组" />
-              </div>
-              <div className="form-group">
-                <label>描述</label>
-                <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>状态</label>
-                <select value={form.status} onChange={e => setForm({ ...form, status: Number(e.target.value) })}>
-                  <option value={1}>启用</option><option value={0}>禁用</option>
-                </select>
-              </div>
-            </div>
-            <div className="form-panel-footer">
-              <button className="btn btn-outline" onClick={() => setShowForm(false)}>取消</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存'}</button>
-            </div>
-          </div>
+      <Modal
+        title={editing ? '编辑客户端' : '新建客户端'}
+        open={openForm}
+        onOk={handleSave}
+        onCancel={() => setOpenForm(false)}
+        okText="保存"
+        cancelText="取消"
+        destroyOnClose
+        width={480}
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="client_id" label="Client ID" rules={[{ required: true }]}>
+            <Input disabled={!!editing} placeholder="如 cli_bigdata" />
+          </Form.Item>
+          <Form.Item name="name" label="客户端名称" rules={[{ required: true }]}>
+            <Input placeholder="如 大数据项目组" />
+          </Form.Item>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={2} placeholder="客户端用途说明" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="API Key 已生成"
+        open={openKeyModal}
+        onCancel={() => setOpenKeyModal(false)}
+        width={480}
+        footer={[
+          <Button key="copy" type="primary" size="large" block onClick={() => { navigator.clipboard.writeText(newApiKey); toast.success('已复制到剪贴板') }}>
+            复制 Key 并关闭
+          </Button>,
+        ]}
+      >
+        <div style={{ padding: '8px 0' }}>
+          <div className="api-key-display">{newApiKey}</div>
+          <div className="api-key-warning">⚠ 请立即复制保存，关闭后将无法再次查看</div>
         </div>
-      )}
-
-      {showKeyModal && (
-        <div className="form-overlay" onClick={() => setShowKeyModal(false)}>
-          <div className="form-panel" style={{ width: 480 }} onClick={e => e.stopPropagation()}>
-            <div className="form-panel-header">
-              API Key 已生成
-              <button className="btn-icon" onClick={() => setShowKeyModal(false)}><X size={16} /></button>
-            </div>
-            <div className="form-panel-body">
-              <div className="api-key-modal">
-                <div className="api-key-display">{newApiKey}</div>
-                <p className="api-key-warning">⚠ 请立即复制保存，关闭后将无法再次查看</p>
-                <div className="form-panel-footer" style={{ justifyContent: 'center', border: 'none', padding: 0 }}>
-                  <button className={`btn ${copied ? 'btn-outline' : 'btn-primary'}`} onClick={copyToClipboard}>
-                    {copied ? <><Check size={16} />已复制</> : <><Copy size={16} />复制 Key</>}
-                  </button>
-                  <button className="btn btn-outline" onClick={() => setShowKeyModal(false)}>关闭</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDelete && (
-        <Confirm title="删除客户端" message={`确定删除客户端「${confirmDelete}」吗？此操作不可撤销。`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} confirmText="删除" danger />
-      )}
+      </Modal>
     </div>
   )
 }

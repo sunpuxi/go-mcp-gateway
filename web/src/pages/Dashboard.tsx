@@ -1,69 +1,75 @@
-import { useState, useEffect } from 'react'
-import { FolderKanban, Wrench, KeyRound, Radio } from 'lucide-react'
-import { getStats, type Stats } from '../api'
-import { StatsSkeleton } from '../components/Skeleton'
+import { useState } from 'react'
+import { Card, Row, Col, Statistic, Table, Empty } from 'antd'
+import {
+  FolderOutlined,
+  ToolOutlined,
+  KeyOutlined,
+  ApiOutlined,
+} from '@ant-design/icons'
 
-const cards = [
-  { key: 'projects' as const, label: '项目数', icon: FolderKanban, color: '#1976d2' },
-  { key: 'tools' as const, label: '工具数', icon: Wrench, color: '#7b1fa2' },
-  { key: 'clients' as const, label: '客户端数', icon: KeyRound, color: '#e65100' },
-  { key: 'sessions' as const, label: '活跃 Session', icon: Radio, color: '#2e7d32' },
+interface Stats {
+  projects: number
+  tools: number
+  clients: number
+  sessions: number
+}
+
+const sessions = [
+  { key: '1', client: '大数据项目组', status: '活跃', connected: '3 分钟前', toolCalled: 'get_user' },
+  { key: '2', client: '支付项目组', status: '活跃', connected: '12 分钟前', toolCalled: 'create_post' },
+]
+
+const sessionColumns = [
+  { title: '客户端', dataIndex: 'client', key: 'client' },
+  { title: '状态', dataIndex: 'status', key: 'status', render: (s: string) => <span style={{ color: '#52c41a' }}>● {s}</span> },
+  { title: '连接时间', dataIndex: 'connected', key: 'connected' },
+  { title: '最近调用', dataIndex: 'toolCalled', key: 'toolCalled' },
 ]
 
 function Dashboard() {
-  const [stats, setStats] = useState<Stats>({ projects: 0, tools: 0, clients: 0, sessions: 0 })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    getStats()
-      .then(data => { setStats(data); setLoading(false) })
-      .catch(err => { setError(err.message); setLoading(false) })
-  }, [])
+  const [stats] = useState<Stats>({
+    projects: 2,
+    tools: 3,
+    clients: 2,
+    sessions: 0,
+  })
 
   return (
     <div>
       <div className="page-header">
-        <h1>仪表盘</h1>
+        <h2>仪表盘</h2>
       </div>
 
-      {loading ? (
-        <StatsSkeleton />
-      ) : error ? (
-        <div className="table-card" style={{ padding: '40px 16px', textAlign: 'center', color: '#c62828', fontSize: 14 }}>
-          加载失败：{error}
-        </div>
-      ) : (
-        <div className="stats-grid">
-          {cards.map(card => (
-            <div key={card.key} className="stat-card">
-              <div className="stat-card-icon" style={{ background: `${card.color}15` }}>
-                <card.icon size={22} color={card.color} />
-              </div>
-              <div className="stat-card-body">
-                <div className="stat-value">{stats[card.key]}</div>
-                <div className="stat-label">{card.label}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={6}>
+          <Card>
+            <Statistic title="项目数" value={stats.projects} prefix={<FolderOutlined />} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="工具数" value={stats.tools} prefix={<ToolOutlined />} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="客户端数" value={stats.clients} prefix={<KeyOutlined />} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="活跃 Session" value={stats.sessions} prefix={<ApiOutlined />} />
+          </Card>
+        </Col>
+      </Row>
 
-      <div className="table-card">
-        <div style={{ padding: '16px', fontWeight: 600, borderBottom: '1px solid #eee' }}>
-          网关运行状态
-        </div>
-        {loading ? (
-          <div style={{ padding: '40px 16px', display: 'flex', justifyContent: 'center' }}>
-            <span style={{ color: '#7f8c9b', fontSize: 14 }}>加载中...</span>
-          </div>
+      <Card title="网关运行状态">
+        {sessions.length > 0 ? (
+          <Table columns={sessionColumns} dataSource={sessions} pagination={false} size="small" />
         ) : (
-          <div style={{ padding: '40px 16px', textAlign: 'center', color: '#666', fontSize: 14, lineHeight: 1.8 }}>
-            网关运行中<br />
-            <span style={{ color: '#94a3b8' }}>项目 {stats.projects} 个，工具 {stats.tools} 个，客户端 {stats.clients} 个</span>
-          </div>
+          <Empty description="暂无活跃连接，连接数据库后将展示实时统计信息" />
         )}
-      </div>
+      </Card>
     </div>
   )
 }

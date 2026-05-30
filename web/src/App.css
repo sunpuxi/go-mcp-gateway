@@ -6,71 +6,19 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f5f6fa;
-  color: #2c3e50;
 }
 
-/* ============ Layout ============ */
-
-.app-layout {
+.logo {
+  height: 64px;
   display: flex;
-  min-height: 100vh;
-}
-
-/* ============ Sidebar ============ */
-
-.sidebar {
-  width: 220px;
-  background: #1a1a2e;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   color: #fff;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-}
-
-.sidebar-header {
-  padding: 20px;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  text-align: center;
-  letter-spacing: 1px;
-}
-
-.sidebar-nav {
-  padding: 12px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.nav-item {
-  display: block;
-  padding: 12px 20px;
-  color: rgba(255,255,255,0.7);
-  text-decoration: none;
-  font-size: 14px;
-  transition: all 0.2s;
-  border-left: 3px solid transparent;
-}
-
-.nav-item:hover {
-  background: rgba(255,255,255,0.08);
-  color: #fff;
-}
-
-.nav-item.active {
-  background: rgba(255,255,255,0.12);
-  color: #fff;
-  border-left-color: #4fc3f7;
-}
-
-/* ============ Main Content ============ */
-
-.main-content {
-  flex: 1;
-  padding: 24px 32px;
-  overflow-y: auto;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .page-header {
@@ -80,314 +28,41 @@ body {
   margin-bottom: 24px;
 }
 
-.page-header h1 {
-  font-size: 22px;
-  font-weight: 600;
+.page-header h2 {
+  margin: 0;
 }
 
-/* ============ Stats Cards ============ */
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-
-.stat-card .stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1a1a2e;
-}
-
-.stat-card .stat-label {
-  font-size: 13px;
-  color: #7f8c9b;
-  margin-top: 4px;
-}
-
-/* ============ Table ============ */
-
-.table-card {
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  overflow: hidden;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-thead {
-  background: #f8f9fb;
-}
-
-th {
-  text-align: left;
-  padding: 12px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #7f8c9b;
-  border-bottom: 1px solid #eee;
-}
-
-td {
-  padding: 12px 16px;
-  font-size: 14px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-tr:last-child td {
-  border-bottom: none;
-}
-
-tr:hover {
-  background: #f8f9fb;
-}
-
-/* ============ Badge / Status ============ */
-
-.status-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-badge.active {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-
-.status-badge.inactive {
-  background: #fbe9e7;
-  color: #c62828;
-}
-
-/* ============ Buttons ============ */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #1976d2;
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: #1565c0;
-}
-
-.btn-sm {
-  padding: 4px 10px;
-  font-size: 12px;
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid #ddd;
-  color: #555;
-}
-
-.btn-outline:hover {
-  background: #f5f5f5;
-}
-
-.btn-danger {
-  background: transparent;
-  border: 1px solid #e57373;
-  color: #c62828;
-}
-
-.btn-danger:hover {
-  background: #fbe9e7;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #7f8c9b;
-  padding: 4px 6px;
-  font-size: 14px;
-}
-
-.btn-icon:hover {
-  color: #2c3e50;
-}
-
-/* ============ Form ============ */
-
-.form-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.form-panel {
-  background: #fff;
-  border-radius: 12px;
-  width: 560px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-}
-
-.form-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 24px;
-  border-bottom: 1px solid #eee;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.form-panel-body {
-  padding: 20px 24px;
-}
-
-.form-panel-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid #eee;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: #555;
-  margin-bottom: 6px;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  border-color: #1976d2;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 60px;
-}
-
-.form-row {
-  display: flex;
-  gap: 12px;
-}
-
-.form-row .form-group {
-  flex: 1;
-}
-
-/* ============ Parameter Rows (动态列表) ============ */
-
-.param-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 12px;
-}
-
-.param-table th {
-  background: #f8f9fb;
-  padding: 8px 10px;
-  font-size: 12px;
-  border-bottom: 2px solid #eee;
-  text-align: left;
-}
-
-.param-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid #f0f0f0;
-  vertical-align: middle;
-}
-
-.param-table input,
-.param-table select {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.param-table .btn-icon {
-  font-size: 16px;
-}
-
-/* ============ Permission Page ============ */
-
+/* 权限页 */
 .permission-layout {
   display: flex;
   gap: 24px;
 }
 
 .permission-client-list {
-  width: 240px;
+  width: 220px;
   flex-shrink: 0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .permission-client-item {
-  padding: 10px 14px;
-  border-radius: 6px;
+  padding: 10px 16px;
   cursor: pointer;
   font-size: 14px;
-  margin-bottom: 4px;
-  border: 1px solid transparent;
+  transition: background 0.2s;
+  border-left: 3px solid transparent;
 }
 
 .permission-client-item:hover {
-  background: #f0f4ff;
+  background: #f5f5f5;
 }
 
 .permission-client-item.selected {
-  background: #e3f2fd;
-  border-color: #1976d2;
-  color: #1976d2;
+  background: #e6f4ff;
   font-weight: 500;
+  border-left-color: #1677ff;
 }
 
 .permission-tools {
@@ -395,169 +70,61 @@ tr:hover {
 }
 
 .permission-group {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .permission-group-title {
   font-weight: 600;
   font-size: 14px;
-  padding: 8px 0;
-  margin-bottom: 6px;
-  border-bottom: 1px solid #eee;
+  padding: 8px 0 4px;
+  color: #333;
 }
 
 .permission-tool-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 8px;
   border-radius: 4px;
   cursor: pointer;
 }
 
 .permission-tool-item:hover {
-  background: #f8f9fb;
+  background: #fafafa;
 }
 
-.permission-tool-item input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-/* ============ API Key Modal ============ */
-
-.api-key-modal {
-  text-align: center;
-  padding: 12px 0;
-}
-
+/* API Key 弹窗 */
 .api-key-display {
-  background: #f5f6fa;
-  border: 2px dashed #1976d2;
+  background: #f6f8fa;
+  border: 2px dashed #1677ff;
   border-radius: 8px;
   padding: 16px;
   font-family: 'Courier New', monospace;
   font-size: 16px;
-  color: #1976d2;
+  color: #1677ff;
+  text-align: center;
   margin: 16px 0;
   word-break: break-all;
 }
 
 .api-key-warning {
   font-size: 13px;
-  color: #e65100;
+  color: #d4380d;
+  text-align: center;
   margin-bottom: 16px;
 }
 
-/* ============ Stat Card Icons ============ */
-
-.stat-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
+/* 参数映射表格 */
+.param-table th {
+  font-size: 12px;
+  padding: 8px 6px;
 }
 
-.stat-card-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+.param-table td {
+  padding: 4px 6px;
 }
 
-.stat-card-body {
-  flex: 1;
-}
-
-/* ============ Skeleton Loading ============ */
-
-@keyframes skeleton-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.skeleton {
-  background: linear-gradient(90deg, #e8eaf0 25%, #f0f2f7 50%, #e8eaf0 75%);
-  background-size: 200% 100%;
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-/* ============ Toast ============ */
-
-.toast-container {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 200;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 380px;
-}
-
-.toast-item {
-  padding: 12px 18px;
-  border-radius: 8px;
-  font-size: 14px;
-  border-left: 4px solid;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  cursor: pointer;
-  animation: toast-in 0.3s ease;
-  line-height: 1.5;
-}
-
-@keyframes toast-in {
-  from { opacity: 0; transform: translateX(40px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* ============ Danger Button ============ */
-
-.btn-danger-solid {
-  background: #e53935;
-  color: #fff;
-}
-
-.btn-danger-solid:hover {
-  background: #c62828;
-}
-
-/* ============ Empty State ============ */
-
-.empty-state {
-  text-align: center;
-  padding: 48px 16px;
-  color: #94a3b8;
-}
-
-.empty-state svg {
-  margin-bottom: 12px;
-  opacity: 0.5;
-}
-
-.empty-state p {
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-
-.empty-state .empty-hint {
-  font-size: 13px;
-  color: #b0bec5;
-}
-
-/* ============ Nav Icon ============ */
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+/* 表格斑马纹 */
+.ant-table-row-striped > td {
+  background: #fafbfc !important;
 }

@@ -1,241 +1,320 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Wrench } from 'lucide-react'
-import { getTools, createTool, updateTool, deleteTool, getProjects, type Tool, type ParamRule, type Project } from '../api'
-import { useToast } from '../components/Toast'
-import { Confirm } from '../components/Confirm'
-import { TableSkeleton } from '../components/Skeleton'
+import { useState } from 'react'
+import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined } from '@ant-design/icons'
+import toast from 'react-hot-toast'
 
-const emptyParam = (): ParamRule => ({ name: '', type: 'string', location: 'query', required: false, default_value: '', description: '' })
-const emptyForm = (projectId: string = ''): Tool => ({
-  tool_id: 0, name: '', title: '', description: '', project_id: projectId,
-  http_method: 'GET', url_template: '', timeout_ms: 5000, status: 1, params: [],
-})
+interface ParamRule {
+  name: string
+  type: string
+  location: string
+  required: boolean
+  default_value: string
+  description: string
+}
+
+interface Tool {
+  tool_id: number
+  name: string
+  title: string
+  description: string
+  project_id: string
+  http_method: string
+  url_template: string
+  timeout_ms: number
+  params: ParamRule[]
+  status: number
+}
+
+const mockTools: Tool[] = [
+  {
+    tool_id: 1, name: 'get_user', title: '获取用户信息',
+    description: '根据用户 ID 获取用户的基本信息',
+    project_id: 'proj_user', http_method: 'GET', url_template: '/users/{user_id}',
+    timeout_ms: 5000, status: 1,
+    params: [
+      { name: 'user_id', type: 'number', location: 'path', required: true, default_value: '', description: '用户 ID' },
+      { name: 'fields', type: 'string', location: 'query', required: false, default_value: '', description: '返回字段' },
+    ],
+  },
+  {
+    tool_id: 2, name: 'get_user_posts', title: '获取用户帖子',
+    description: '根据用户 ID 获取该用户的所有帖子列表',
+    project_id: 'proj_user', http_method: 'GET', url_template: '/users/{user_id}/posts',
+    timeout_ms: 5000, status: 1,
+    params: [{ name: 'user_id', type: 'number', location: 'path', required: true, default_value: '', description: '用户 ID' }],
+  },
+  {
+    tool_id: 3, name: 'create_post', title: '创建帖子',
+    description: '创建一个新的帖子',
+    project_id: 'proj_post', http_method: 'POST', url_template: '/posts',
+    timeout_ms: 5000, status: 1,
+    params: [
+      { name: 'title', type: 'string', location: 'body', required: true, default_value: '', description: '帖子标题' },
+      { name: 'body', type: 'string', location: 'body', required: true, default_value: '', description: '帖子内容' },
+      { name: 'userId', type: 'number', location: 'body', required: true, default_value: '', description: '用户 ID' },
+    ],
+  },
+]
+
+const httpColors: Record<string, string> = {
+  GET: 'green', POST: 'blue', PUT: 'orange', DELETE: 'red', PATCH: 'purple',
+}
+
+const projectLabels: Record<string, string> = {
+  proj_user: '用户服务', proj_post: '帖子服务',
+}
 
 function Tools() {
-  const [tools, setTools] = useState<Tool[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [showForm, setShowForm] = useState(false)
+  const [tools, setTools] = useState<Tool[]>(mockTools)
+  const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tool | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null)
-  const [form, setForm] = useState<Tool>(emptyForm())
-  const { toast } = useToast()
+  const [form] = Form.useForm()
 
-  const fetchData = useCallback(() => {
-    setLoading(true)
-    setError('')
-    Promise.all([getTools(), getProjects()])
-      .then(([toolsData, projectsData]) => { setTools(toolsData); setProjects(projectsData); setLoading(false) })
-      .catch(err => { setError(err.message); setLoading(false) })
-  }, [])
-
-  useEffect(() => { fetchData() }, [fetchData])
+  const columns = [
+    {
+      title: '工具名称', dataIndex: 'name', key: 'name', width: 140,
+      render: (v: string) => (
+        <Space>
+          <ApiOutlined style={{ color: '#1677ff' }} />
+          <strong>{v}</strong>
+        </Space>
+      ),
+    },
+    {
+      title: '标题', dataIndex: 'title', key: 'title', width: 160,
+      ellipsis: { showTitle: false },
+      render: (v: string) => <Tooltip title={v}><span>{v}</span></Tooltip>,
+    },
+    {
+      title: '所属项目', dataIndex: 'project_id', key: 'project_id', width: 110,
+      render: (v: string) => <Tag color="purple">{projectLabels[v] || v}</Tag>,
+    },
+    {
+      title: '方法', dataIndex: 'http_method', key: 'http_method', width: 90, align: 'center',
+      render: (m: string) => (
+        <Tag color={httpColors[m] || 'default'} style={{ fontWeight: 600, minWidth: 48, textAlign: 'center' }}>
+          {m}
+        </Tag>
+      ),
+    },
+    {
+      title: 'URL 模板', dataIndex: 'url_template', key: 'url_template',
+      render: (v: string) => <code style={{ fontSize: 13, background: '#f5f5f5', padding: '2px 6px', borderRadius: 4 }}>{v}</code>,
+    },
+    {
+      title: '参数', key: 'params', width: 70, align: 'center',
+      render: (_: unknown, r: Tool) => (
+        <Tag color={r.params.length > 0 ? 'blue' : 'default'}>{r.params.length} 个</Tag>
+      ),
+    },
+    {
+      title: '超时', dataIndex: 'timeout_ms', key: 'timeout_ms', width: 90, align: 'center',
+      render: (v: number) => <span style={{ color: '#666' }}>{v}ms</span>,
+    },
+    {
+      title: '状态', dataIndex: 'status', key: 'status', width: 80, align: 'center',
+      render: (s: number) => (
+        <Tag color={s === 1 ? 'success' : 'error'} style={{ minWidth: 48, textAlign: 'center' }}>
+          {s === 1 ? '启用' : '禁用'}
+        </Tag>
+      ),
+    },
+    {
+      title: '操作', key: 'action', width: 100, align: 'center',
+      render: (_: unknown, record: Tool) => (
+        <Space size="small">
+          <Tooltip title="编辑">
+            <Button type="primary" size="small" ghost icon={<EditOutlined />} onClick={() => openEdit(record)} />
+          </Tooltip>
+          <Popconfirm
+            title="确定删除？"
+            description={`将删除工具「${record.name}」`}
+            onConfirm={() => handleDelete(record.tool_id)}
+            okText="确认"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+          >
+            <Tooltip title="删除">
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ]
 
   const openCreate = () => {
     setEditing(null)
-    const f = emptyForm(projects.length > 0 ? projects[0].project_id : '')
-    setForm(f)
-    setShowForm(true)
+    form.setFieldsValue({
+      name: '', title: '', description: '', project_id: 'proj_user',
+      http_method: 'GET', url_template: '', timeout_ms: 5000, status: 1, params: [],
+    })
+    setOpen(true)
   }
 
   const openEdit = (t: Tool) => {
     setEditing(t)
-    setForm({ ...t, params: t.params?.map((p: any) => ({ ...p })) || [] })
-    setShowForm(true)
-  }
-
-  const addParam = () => setForm({ ...form, params: [...form.params, emptyParam()] })
-  const removeParam = (idx: number) => setForm({ ...form, params: form.params.filter((_, i) => i !== idx) })
-  const updateParam = (idx: number, field: keyof ParamRule, value: string | boolean) => {
-    setForm({ ...form, params: form.params.map((p, i) => i === idx ? { ...p, [field]: value } : p) })
+    form.setFieldsValue({ ...t })
+    setOpen(true)
   }
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.title.trim() || !form.url_template.trim() || !form.project_id) {
-      toast('warning', '请填写必填字段')
-      return
+    const values = await form.validateFields()
+    if (editing) {
+      setTools(tools.map(t => t.tool_id === editing.tool_id ? { ...t, ...values } : t))
+      toast.success('工具更新成功')
+    } else {
+      setTools([...tools, { ...values, tool_id: Math.max(...tools.map(t => t.tool_id), 0) + 1 }])
+      toast.success('工具创建成功')
     }
-    setSaving(true)
-    try {
-      const { tool_id, ...data } = form
-      if (editing) {
-        const updated = await updateTool(editing.tool_id, data)
-        setTools(tools.map(t => t.tool_id === editing.tool_id ? updated : t))
-        toast('success', '工具已更新')
-      } else {
-        const created = await createTool(data)
-        setTools([...tools, created])
-        toast('success', '工具已创建')
-      }
-      setShowForm(false)
-    } catch (err: any) {
-      toast('error', '保存失败: ' + err.message)
-    } finally {
-      setSaving(false)
-    }
+    setOpen(false)
   }
 
-  const handleDelete = async () => {
-    if (confirmDelete == null) return
-    try {
-      await deleteTool(confirmDelete)
-      setTools(tools.filter(t => t.tool_id !== confirmDelete))
-      toast('success', '工具已删除')
-    } catch (err: any) {
-      toast('error', '删除失败: ' + err.message)
-    }
-    setConfirmDelete(null)
-  }
-
-  const getProjectName = (projectId: string) => projects.find(p => p.project_id === projectId)?.name || projectId
-
-  if (error) {
-    return (
-      <div>
-        <div className="page-header"><h1>工具管理</h1><button className="btn btn-outline" onClick={fetchData}>重试</button></div>
-        <div className="table-card" style={{ padding: '40px 16px', textAlign: 'center', color: '#c62828', fontSize: 14 }}>加载失败：{error}</div>
-      </div>
-    )
+  const handleDelete = (id: number) => {
+    setTools(tools.filter(t => t.tool_id !== id))
+    toast.success('工具已删除')
   }
 
   return (
     <div>
       <div className="page-header">
-        <h1>工具管理</h1>
-        <button className="btn btn-primary" onClick={openCreate}><Plus size={16} />新建工具</button>
+        <h2>工具管理</h2>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建工具</Button>
       </div>
 
-      <div className="table-card">
-        {loading ? <TableSkeleton rows={5} cols={8} /> : tools.length === 0 ? (
-          <div className="empty-state"><Wrench size={40} /><p>暂无工具</p><p className="empty-hint">点击「新建工具」配置 MCP 协议转换规则</p></div>
-        ) : (
-          <table>
-            <thead>
-              <tr><th>工具名称</th><th>标题</th><th>所属项目</th><th>HTTP 方法</th><th>URL 模板</th><th>参数</th><th>状态</th><th>操作</th></tr>
-            </thead>
-            <tbody>
-              {tools.map(t => (
-                <tr key={t.tool_id}>
-                  <td><strong>{t.name}</strong></td>
-                  <td>{t.title}</td>
-                  <td>{getProjectName(t.project_id)}</td>
-                  <td><span style={{ fontWeight: 600 }}>{t.http_method}</span></td>
-                  <td style={{ fontFamily: 'monospace', fontSize: 13, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.url_template}</td>
-                  <td>{t.params?.length || 0}</td>
-                  <td><span className={`status-badge ${t.status === 1 ? 'active' : 'inactive'}`}>{t.status === 1 ? '启用' : '禁用'}</span></td>
-                  <td>
-                    <button className="btn-icon" onClick={() => openEdit(t)} title="编辑"><Pencil size={15} /></button>
-                    <button className="btn-icon" onClick={() => setConfirmDelete(t.tool_id)} title="删除"><Trash2 size={15} /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table
+          rowKey="tool_id"
+          columns={columns}
+          dataSource={tools}
+          size="middle"
+          scroll={{ x: 1100 }}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 个工具`,
+          }}
+          locale={{ emptyText: '暂无工具，点击右上角"新建工具"开始配置 HTTP 接口的协议转换' }}
+          rowClassName={(_, index) => index % 2 === 0 ? 'ant-table-row-striped' : ''}
+        />
+      </Card>
 
-      {showForm && (
-        <div className="form-overlay" onClick={() => setShowForm(false)}>
-          <div className="form-panel" style={{ width: 720 }} onClick={e => e.stopPropagation()}>
-            <div className="form-panel-header">
-              {editing ? '编辑工具' : '新建工具'}
-              <button className="btn-icon" onClick={() => setShowForm(false)}><X size={16} /></button>
-            </div>
-            <div className="form-panel-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>工具名称 <span style={{ color: '#e53935' }}>*</span></label>
-                  <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="get_user" />
-                </div>
-                <div className="form-group">
-                  <label>标题 <span style={{ color: '#e53935' }}>*</span></label>
-                  <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="获取用户信息" />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>描述</label>
-                <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>所属项目 <span style={{ color: '#e53935' }}>*</span></label>
-                  <select value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value })}>
-                    <option value="">请选择项目</option>
-                    {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>HTTP 方法</label>
-                  <select value={form.http_method} onChange={e => setForm({ ...form, http_method: e.target.value })}>
-                    {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>超时(ms)</label>
-                  <input type="number" value={form.timeout_ms} onChange={e => setForm({ ...form, timeout_ms: Number(e.target.value) })} />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>URL 模板 <span style={{ color: '#e53935' }}>*</span></label>
-                <input value={form.url_template} onChange={e => setForm({ ...form, url_template: e.target.value })} placeholder="/users/{user_id}" />
-              </div>
-              <div className="form-group">
-                <label>状态</label>
-                <select value={form.status} onChange={e => setForm({ ...form, status: Number(e.target.value) })}>
-                  <option value={1}>启用</option><option value={0}>禁用</option>
-                </select>
-              </div>
+      <Modal
+        title={editing ? '编辑工具' : '新建工具'}
+        open={open}
+        width={800}
+        onOk={handleSave}
+        onCancel={() => setOpen(false)}
+        okText="保存"
+        cancelText="取消"
+        destroyOnClose
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Space.Compact block>
+            <Form.Item name="name" label="工具名称" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <Input placeholder="get_user" disabled={!!editing} />
+            </Form.Item>
+            <Form.Item name="title" label="标题" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <Input placeholder="获取用户信息" />
+            </Form.Item>
+          </Space.Compact>
+          <Form.Item name="description" label="描述">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+          <Space.Compact block>
+            <Form.Item name="project_id" label="所属项目" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <Select options={[
+                { value: 'proj_user', label: '用户服务' },
+                { value: 'proj_post', label: '帖子服务' },
+              ]} />
+            </Form.Item>
+            <Form.Item name="http_method" label="HTTP 方法" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <Select options={['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m }))} />
+            </Form.Item>
+            <Form.Item name="timeout_ms" label="超时(ms)" style={{ flex: 1 }}>
+              <InputNumber min={100} max={60000} style={{ width: '100%' }} />
+            </Form.Item>
+          </Space.Compact>
+          <Form.Item name="url_template" label="URL 模板" rules={[{ required: true }]}>
+            <Input placeholder="/users/{user_id}" />
+          </Form.Item>
 
-              <div style={{ marginTop: 20 }}>
+          <Form.List name="params">
+            {(fields, { add, remove }) => (
+              <div style={{ marginTop: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label style={{ fontWeight: 600, fontSize: 14 }}>参数映射规则</label>
-                  <button className="btn btn-sm btn-outline" onClick={addParam}><Plus size={14} />添加参数</button>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>参数映射规则</span>
+                  <Button size="small" onClick={() => add({ name: '', type: 'string', location: 'query', required: false, default_value: '', description: '' })}>
+                    + 添加参数
+                  </Button>
                 </div>
-                {form.params.length > 0 ? (
-                  <table className="param-table">
-                    <thead>
-                      <tr><th style={{ width: '16%' }}>参数名</th><th style={{ width: '10%' }}>类型</th><th style={{ width: '14%' }}>位置</th><th style={{ width: '8%' }}>必填</th><th style={{ width: '14%' }}>默认值</th><th style={{ width: '28%' }}>描述</th><th style={{ width: '10%' }}>操作</th></tr>
-                    </thead>
-                    <tbody>
-                      {form.params.map((p, idx) => (
-                        <tr key={idx}>
-                          <td><input value={p.name} onChange={e => updateParam(idx, 'name', e.target.value)} placeholder="参数名" /></td>
-                          <td>
-                            <select value={p.type} onChange={e => updateParam(idx, 'type', e.target.value)}>
-                              <option value="string">string</option><option value="number">number</option><option value="boolean">boolean</option><option value="object">object</option>
-                            </select>
-                          </td>
-                          <td>
-                            <select value={p.location} onChange={e => updateParam(idx, 'location', e.target.value)}>
-                              <option value="path">path</option><option value="query">query</option><option value="body">body</option><option value="header">header</option>
-                            </select>
-                          </td>
-                          <td style={{ textAlign: 'center' }}><input type="checkbox" checked={p.required} onChange={e => updateParam(idx, 'required', e.target.checked)} /></td>
-                          <td><input value={p.default_value} onChange={e => updateParam(idx, 'default_value', e.target.value)} /></td>
-                          <td><input value={p.description} onChange={e => updateParam(idx, 'description', e.target.value)} placeholder="参数说明" /></td>
-                          <td><button className="btn-icon" onClick={() => removeParam(idx)}><Trash2 size={15} /></button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {fields.length === 0 ? (
+                  <div style={{ color: '#999', fontSize: 13, padding: 20, textAlign: 'center', background: '#fafafa', borderRadius: 6 }}>
+                    暂无参数规则，点击「添加参数」配置 MCP 参数到 HTTP 请求的映射
+                  </div>
                 ) : (
-                  <div style={{ color: '#7f8c9b', fontSize: 13, padding: '12px 0' }}>暂无参数规则，点击「添加参数」开始配置</div>
+                  <Table
+                    className="param-table"
+                    dataSource={fields.map(f => ({ ...f, key: f.key }))}
+                    pagination={false}
+                    size="small"
+                    columns={[
+                      {
+                        title: '参数名', render: (_: unknown, f: { key: number, name: number }) => (
+                          <Form.Item name={[f.name, 'name']} noStyle rules={[{ required: true }]}>
+                            <Input placeholder="参数名" size="small" />
+                          </Form.Item>
+                        ),
+                      },
+                      {
+                        title: '类型', width: 100, render: (_: unknown, f: { key: number, name: number }) => (
+                          <Form.Item name={[f.name, 'type']} noStyle>
+                            <Select size="small" options={['string', 'number', 'boolean', 'object'].map(v => ({ value: v, label: v }))} style={{ width: 85 }} />
+                          </Form.Item>
+                        ),
+                      },
+                      {
+                        title: '位置', width: 100, render: (_: unknown, f: { key: number, name: number }) => (
+                          <Form.Item name={[f.name, 'location']} noStyle rules={[{ required: true }]}>
+                            <Select size="small" options={['path', 'query', 'body', 'header'].map(v => ({ value: v, label: v }))} style={{ width: 85 }} />
+                          </Form.Item>
+                        ),
+                      },
+                      {
+                        title: '必填', width: 60, align: 'center', render: (_: unknown, f: { key: number, name: number }) => (
+                          <Form.Item name={[f.name, 'required']} noStyle valuePropName="checked">
+                            <Select size="small" options={[{ value: true, label: '是' }, { value: false, label: '否' }]} style={{ width: 55 }} />
+                          </Form.Item>
+                        ),
+                      },
+                      {
+                        title: '默认值', width: 110, render: (_: unknown, f: { key: number, name: number }) => (
+                          <Form.Item name={[f.name, 'default_value']} noStyle>
+                            <Input placeholder="默认值" size="small" />
+                          </Form.Item>
+                        ),
+                      },
+                      {
+                        title: '描述', render: (_: unknown, f: { key: number, name: number }) => (
+                          <Form.Item name={[f.name, 'description']} noStyle>
+                            <Input placeholder="参数说明" size="small" />
+                          </Form.Item>
+                        ),
+                      },
+                      {
+                        title: '', width: 40,
+                        render: (_: unknown, f: { key: number, name: number }) => (
+                          <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(f.name)} />
+                        ),
+                      },
+                    ]}
+                  />
                 )}
               </div>
-            </div>
-            <div className="form-panel-footer">
-              <button className="btn btn-outline" onClick={() => setShowForm(false)}>取消</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存'}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDelete != null && (
-        <Confirm title="删除工具" message={`确定删除该工具吗？此操作不可撤销。`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} confirmText="删除" danger />
-      )}
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
     </div>
   )
 }
