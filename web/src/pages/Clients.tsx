@@ -94,7 +94,7 @@ function Clients() {
             </Button>
           </Tooltip>
           <Tooltip title="编辑">
-            <Button size="small" ghost icon={<EditOutlined />} onClick={() => openEdit(record)} />
+            <Button type="primary" size="small" ghost icon={<EditOutlined />} onClick={() => openEdit(record)} />
           </Tooltip>
           <Popconfirm
             title="确定删除？"

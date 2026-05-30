@@ -61,9 +61,10 @@ $sb = New-Object System.Text.StringBuilder
 [void]$sb.AppendLine("docker compose ps 2>/dev/null || docker-compose ps 2>/dev/null || true")
 [void]$sb.AppendLine("echo ''")
 [void]$sb.AppendLine("echo '[REMOTE] deploy done.'")
+[void]$sb.AppendLine("exit 0")
 
-# Convert CRLF to LF for Linux bash
-$bashScript = $sb.ToString() -replace "`r`n", "`n"
+# Convert CRLF to LF, remove all carriage returns for Linux bash
+$bashScript = ($sb.ToString() -replace "`r", "") -replace "`n`n`n+", "`n`n"
 $bashScript | ssh -p $REMOTE_PORT "$REMOTE_USER@$REMOTE_HOST" "bash -s"
 
 if ($LASTEXITCODE -eq 0) {
