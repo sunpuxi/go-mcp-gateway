@@ -1,14 +1,24 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin, Collapse, Dropdown } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined, ReloadOutlined, SearchOutlined, DownloadOutlined, FilterOutlined } from '@ant-design/icons'
+import {
+  Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm,
+  Tag, Tooltip, Card, Switch, Spin, Dropdown, Row, Col, Tabs,
+} from 'antd'
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined,
+  ReloadOutlined, SearchOutlined, DownloadOutlined, FilterOutlined,
+} from '@ant-design/icons'
 import toast from 'react-hot-toast'
-import { Tool, ToolForm, ParamRule, RetryConfig, RateLimitConfig, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
+import { Tool, ToolForm, ParamRule, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
 import { appendOperationLog } from '../utils/operationLog'
 import { exportToCSV } from '../utils/export'
 
 const httpColors: Record<string, string> = {
   GET: 'green', POST: 'blue', PUT: 'orange', DELETE: 'red', PATCH: 'purple',
 }
+
+const METHOD_OPTIONS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m }))
+const TYPE_OPTIONS = ['string', 'number', 'boolean', 'object'].map(v => ({ value: v, label: v }))
+const LOCATION_OPTIONS = ['path', 'query', 'body', 'header'].map(v => ({ value: v, label: v }))
 
 function Tools() {
   const [tools, setTools] = useState<Tool[]>([])
@@ -40,19 +50,15 @@ function Tools() {
     }
   }, [])
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  useEffect(() => { loadData() }, [loadData])
 
   const projectOptions = projects
     .filter(p => p.status === 1)
     .map(p => ({ value: p.project_id, label: p.name }))
 
-  const getProjectName = (projectId: string) => {
-    return projects.find(p => p.project_id === projectId)?.name || projectId
-  }
+  const getProjectName = (projectId: string) =>
+    projects.find(p => p.project_id === projectId)?.name || projectId
 
-  // 客户端筛选
   const filteredData = useMemo(() => {
     return tools.filter(t => {
       const matchSearch = !searchText ||
@@ -67,6 +73,10 @@ function Tools() {
       return matchSearch && matchStatus && matchMethod && matchProject
     })
   }, [tools, searchText, statusFilter, methodFilter, projectFilter])
+
+  // ============================================================================
+  //  表格列定义
+  // ============================================================================
 
   const columns = [
     {
@@ -160,8 +170,13 @@ function Tools() {
     },
   ]
 
+  // ============================================================================
+  //  Drawer 打开 / 关闭
+  // ============================================================================
+
   const openCreate = () => {
     setEditing(null)
+    form.resetFields()
     form.setFieldsValue({
       name: '', title: '', description: '', project_id: projectOptions[0]?.value || '',
       http_method: 'GET', url_template: '', timeout_ms: 5000, status: true, params: [],
@@ -189,6 +204,10 @@ function Tools() {
     })
     setOpen(true)
   }
+
+  // ============================================================================
+  //  保存 / 切换 / 删除
+  // ============================================================================
 
   const handleSave = async () => {
     const values = await form.validateFields()
@@ -236,7 +255,6 @@ function Tools() {
   const handleToggleStatus = async (id: number, checked: boolean) => {
     const tool = tools.find(t => t.tool_id === id)
     if (!tool) return
-
     setTogglingIds(prev => new Set(prev).add(id))
     try {
       const payload: ToolForm = {
@@ -259,11 +277,7 @@ function Tools() {
     } catch (e: unknown) {
       toast.error('操作失败: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
-      setTogglingIds(prev => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
+      setTogglingIds(prev => { const next = new Set(prev); next.delete(id); return next })
     }
   }
 
@@ -278,7 +292,6 @@ function Tools() {
     }
   }
 
-  // 批量删除
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) return
     setLoading(true)
@@ -288,9 +301,7 @@ function Tools() {
         await deleteTool(id as number)
         appendOperationLog('删除', `#${id}`, '批量删除工具')
         successCount++
-      } catch {
-        toast.error(`删除工具 #${id} 失败`)
-      }
+      } catch { toast.error(`删除工具 #${id} 失败`) }
     }
     setSelectedRowKeys([])
     setLoading(false)
@@ -311,15 +322,22 @@ function Tools() {
     if (format === 'csv') {
       exportToCSV(filteredData, exportColumns, 'tools')
     } else {
-      import('../utils/export').then(({ exportToJSON }) => {
-        exportToJSON(filteredData, 'tools')
-      })
+      import('../utils/export').then(({ exportToJSON }) => exportToJSON(filteredData, 'tools'))
     }
     toast.success(`已导出 ${filteredData.length} 条记录`)
   }
 
+  // ============================================================================
+  //  渲染
+  // ============================================================================
+
+  const modalTitle = editing
+    ? `编辑工具 · ${editing.name}`
+    : '新建工具'
+
   return (
     <div>
+      {/* ── 页头 ── */}
       <div className="page-header">
         <h2>工具管理</h2>
         <Space wrap>
@@ -336,64 +354,59 @@ function Tools() {
         </Space>
       </div>
 
-      {/* 筛选栏 */}
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Input
-            placeholder="搜索工具名称 / 标题…"
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-            style={{ width: 240 }}
-            allowClear
-          />
-          <Select
-            value={projectFilter}
-            onChange={v => setProjectFilter(v)}
-            style={{ width: 140 }}
-            placeholder="所属项目"
-            options={[
-              { value: 'all', label: '全部项目' },
-              ...projectOptions.map(p => ({ value: p.value, label: p.label })),
-            ]}
-            prefix={<FilterOutlined />}
-          />
-          <Select
-            value={methodFilter}
-            onChange={v => setMethodFilter(v)}
-            style={{ width: 100 }}
-            options={[
-              { value: 'all', label: '全部方法' },
-              ...['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m })),
-            ]}
-          />
-          <Select
-            value={statusFilter}
-            onChange={v => setStatusFilter(v)}
-            style={{ width: 110 }}
-            options={[
-              { value: 'all', label: '全部状态' },
-              { value: 'enabled', label: '已启用' },
-              { value: 'disabled', label: '已禁用' },
-            ]}
-          />
+      {/* ── 筛选栏 ── */}
+      <Card size="small" className="filter-bar" style={{ marginBottom: 16 }}>
+        <Row gutter={[12, 8]} align="middle">
+          <Col flex="auto">
+            <Input
+              placeholder="搜索工具名称、标题或描述…"
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              allowClear
+            />
+          </Col>
+          <Col>
+            <Select
+              value={projectFilter}
+              onChange={setProjectFilter}
+              style={{ width: 140 }}
+              options={[{ value: 'all', label: '全部项目' }, ...projectOptions]}
+              prefix={<FilterOutlined />}
+            />
+          </Col>
+          <Col>
+            <Select value={methodFilter} onChange={setMethodFilter} style={{ width: 100 }}
+              options={[{ value: 'all', label: '全部方法' }, ...METHOD_OPTIONS]} />
+          </Col>
+          <Col>
+            <Select value={statusFilter} onChange={setStatusFilter} style={{ width: 100 }}
+              options={[
+                { value: 'all', label: '全部状态' },
+                { value: 'enabled', label: '已启用' },
+                { value: 'disabled', label: '已禁用' },
+              ]} />
+          </Col>
           {selectedRowKeys.length > 0 && (
-            <Popconfirm
-              title="批量删除"
-              description={`确定删除选中的 ${selectedRowKeys.length} 个工具？`}
-              onConfirm={handleBatchDelete}
-              okText="确认删除"
-              cancelText="取消"
-              okButtonProps={{ danger: true }}
-            >
-              <Button danger icon={<DeleteOutlined />}>
-                删除选中 ({selectedRowKeys.length})
-              </Button>
-            </Popconfirm>
+            <Col>
+              <Popconfirm
+                title="批量删除"
+                description={`确定删除选中的 ${selectedRowKeys.length} 个工具？`}
+                onConfirm={handleBatchDelete}
+                okText="确认删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+              >
+                <Button danger icon={<DeleteOutlined />}>
+                  删除选中 ({selectedRowKeys.length})
+                </Button>
+              </Popconfirm>
+            </Col>
           )}
-        </Space>
+        </Row>
       </Card>
 
+      {/* ── 工具表格 ── */}
       <Card styles={{ body: { padding: 0 } }}>
         <Spin spinning={loading}>
           <Table
@@ -402,10 +415,7 @@ function Tools() {
             dataSource={filteredData}
             size="middle"
             scroll={{ x: 1200 }}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
+            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
             pagination={{
               pageSize: 20,
               showSizeChanger: true,
@@ -417,198 +427,227 @@ function Tools() {
         </Spin>
       </Card>
 
+      {/* ── 编辑弹窗 ── */}
       <Modal
-        title={editing ? '编辑工具' : '新建工具'}
+        title={modalTitle}
         open={open}
-        width={800}
-        onOk={handleSave}
+        width={1080}
         onCancel={() => setOpen(false)}
+        onOk={handleSave}
         okText="保存"
         cancelText="取消"
         confirmLoading={saving}
         destroyOnClose
-        styles={{ body: { maxHeight: '65vh', overflowY: 'auto' } }}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px' } }}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Space.Compact block>
-            <Form.Item name="name" label="工具名称" rules={[{ required: true, message: '请输入工具名称' }]} style={{ flex: 1 }}>
-              <Input placeholder="get_user" disabled={!!editing} />
-            </Form.Item>
-            <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]} style={{ flex: 1 }}>
-              <Input placeholder="获取用户信息" />
-            </Form.Item>
-          </Space.Compact>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-          <Space.Compact block>
-            <Form.Item name="project_id" label="所属项目" rules={[{ required: true, message: '请选择项目' }]} style={{ flex: 1 }}>
-              <Select options={projectOptions} placeholder="选择项目" />
-            </Form.Item>
-            <Form.Item name="http_method" label="HTTP 方法" rules={[{ required: true }]} style={{ flex: 1 }}>
-              <Select options={['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m }))} />
-            </Form.Item>
-            <Form.Item name="timeout_ms" label="超时(ms)" style={{ flex: 1 }}>
-              <InputNumber min={100} max={60000} style={{ width: '100%' }} />
-            </Form.Item>
-          </Space.Compact>
-          <Form.Item name="url_template" label="URL 模板" rules={[{ required: true, message: '请输入 URL 模板' }]}>
-            <Input placeholder="/users/{user_id}" />
-          </Form.Item>
-          <Form.Item name="status" label="启用" valuePropName="checked">
-            <Switch />
-          </Form.Item>
+        <Form form={form} layout="vertical">
 
-          <Form.List name="params">
-            {(fields, { add, remove }) => (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>参数映射规则</span>
-                  <Button size="small" onClick={() => add({ name: '', type: 'string', location: 'query', required: false, default_value: '', description: '' })}>
-                    + 添加参数
-                  </Button>
+          {/* ── 基本信息 ── */}
+          <Card size="small" title="基本信息" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="name" label="工具名称" rules={[{ required: true, message: '请输入工具名称' }]}>
+                  <Input placeholder="get_user" disabled={!!editing} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
+                  <Input placeholder="获取用户信息" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="description" label="描述">
+              <Input.TextArea rows={2} placeholder="工具的功能描述（可选）" />
+            </Form.Item>
+          </Card>
+
+          {/* ── 请求配置 ── */}
+          <Card size="small" title="请求配置" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="project_id" label="所属项目" rules={[{ required: true, message: '请选择项目' }]}>
+                  <Select options={projectOptions} placeholder="选择项目" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="http_method" label="HTTP 方法" rules={[{ required: true }]}>
+                  <Select options={METHOD_OPTIONS} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="timeout_ms" label="超时 (ms)">
+                  <InputNumber min={100} max={60000} style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="url_template" label="URL 模板" rules={[{ required: true, message: '请输入 URL 模板' }]}>
+              <Input placeholder="/users/{user_id}" />
+            </Form.Item>
+            <Form.Item name="status" label="启用" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+          </Card>
+
+          {/* ── 参数映射 ── */}
+          <Card
+            size="small"
+            title="参数映射规则"
+            style={{ marginBottom: 16 }}
+            extra={
+              <Button size="small" type="dashed" icon={<PlusOutlined />}
+                onClick={() => {
+                  const fields = form.getFieldValue('params') || []
+                  form.setFieldsValue({ params: [...fields, { name: '', type: 'string', location: 'query', required: false, default_value: '', description: '' }] })
+                }}>
+                添加
+              </Button>
+            }
+          >
+            <Form.List name="params">
+              {(fields, { add, remove }) => (
+                <div>
+                  {fields.length === 0 ? (
+                    <div className="param-empty">
+                      暂无参数映射规则，点击右上角「添加」配置 MCP 参数到 HTTP 请求的映射
+                    </div>
+                  ) : (
+                    fields.map((field) => (
+                      <div key={field.key} className="param-card">
+                        <div className="param-card-row">
+                          <div className="param-card-name">
+                            <Form.Item name={[field.name, 'name']} label="参数名" rules={[{ required: true, message: '必填' }]}>
+                              <Input placeholder="参数名" />
+                            </Form.Item>
+                          </div>
+                          <div className="param-card-type">
+                            <Form.Item name={[field.name, 'type']} label="类型">
+                              <Select options={TYPE_OPTIONS} />
+                            </Form.Item>
+                          </div>
+                          <div className="param-card-location">
+                            <Form.Item name={[field.name, 'location']} label="位置" rules={[{ required: true, message: '必填' }]}>
+                              <Select options={LOCATION_OPTIONS} />
+                            </Form.Item>
+                          </div>
+                          <div style={{ width: 60 }}>
+                            <Form.Item name={[field.name, 'required']} label="必填" valuePropName="checked">
+                              <Switch size="small" />
+                            </Form.Item>
+                          </div>
+                          <div className="param-card-delete">
+                            <Button type="link" danger size="small" icon={<DeleteOutlined />}
+                              onClick={() => remove(field.name)} />
+                          </div>
+                        </div>
+                        <div className="param-card-row">
+                          <div className="param-card-default">
+                            <Form.Item name={[field.name, 'default_value']} label="默认值">
+                              <Input placeholder="默认值" />
+                            </Form.Item>
+                          </div>
+                          <div className="param-card-desc">
+                            <Form.Item name={[field.name, 'description']} label="描述">
+                              <Input placeholder="参数说明" />
+                            </Form.Item>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {fields.length > 0 && (
+                    <Button type="dashed" icon={<PlusOutlined />} block style={{ marginTop: 4 }}
+                      onClick={() => add({ name: '', type: 'string', location: 'query', required: false, default_value: '', description: '' })}>
+                      添加参数
+                    </Button>
+                  )}
                 </div>
-                {fields.length === 0 ? (
-                  <div style={{ color: '#999', fontSize: 13, padding: 20, textAlign: 'center', background: '#fafafa', borderRadius: 6 }}>
-                    暂无参数规则，点击「添加参数」配置 MCP 参数到 HTTP 请求的映射
-                  </div>
-                ) : (
-                  <Table
-                    className="param-table"
-                    dataSource={fields.map(f => ({ ...f, key: f.key }))}
-                    pagination={false}
-                    size="small"
-                    columns={[
-                      {
-                        title: '参数名', render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'name']} noStyle rules={[{ required: true, message: '必填' }]}>
-                            <Input placeholder="参数名" size="small" />
-                          </Form.Item>
-                        ),
-                      },
-                      {
-                        title: '类型', width: 100, render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'type']} noStyle>
-                            <Select size="small" options={['string', 'number', 'boolean', 'object'].map(v => ({ value: v, label: v }))} style={{ width: 85 }} />
-                          </Form.Item>
-                        ),
-                      },
-                      {
-                        title: '位置', width: 100, render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'location']} noStyle rules={[{ required: true, message: '必填' }]}>
-                            <Select size="small" options={['path', 'query', 'body', 'header'].map(v => ({ value: v, label: v }))} style={{ width: 85 }} />
-                          </Form.Item>
-                        ),
-                      },
-                      {
-                        title: '必填', width: 60, align: 'center' as const, render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'required']} noStyle valuePropName="checked">
-                            <Select size="small" options={[{ value: true, label: '是' }, { value: false, label: '否' }]} style={{ width: 55 }} />
-                          </Form.Item>
-                        ),
-                      },
-                      {
-                        title: '默认值', width: 110, render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'default_value']} noStyle>
-                            <Input placeholder="默认值" size="small" />
-                          </Form.Item>
-                        ),
-                      },
-                      {
-                        title: '描述', render: (_: unknown, f: { key: number, name: number }) => (
-                          <Form.Item name={[f.name, 'description']} noStyle>
-                            <Input placeholder="参数说明" size="small" />
-                          </Form.Item>
-                        ),
-                      },
-                      {
-                        title: '', width: 40,
-                        render: (_: unknown, f: { key: number, name: number }) => (
-                          <Button type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => remove(f.name)} />
-                        ),
-                      },
-                    ]}
-                  />
-                )}
-              </div>
-            )}
-          </Form.List>
+              )}
+            </Form.List>
+          </Card>
 
-          <Collapse
-            ghost
-            items={[{
-              key: 'retry',
-              label: '重试策略（可选）',
-              children: (
-                <>
-                  <Form.Item name="retry_enabled" label="启用重试" valuePropName="checked">
-                    <Switch />
-                  </Form.Item>
-                  <Form.Item noStyle shouldUpdate={(prev, cur) => prev.retry_enabled !== cur.retry_enabled}>
-                    {({ getFieldValue }) => {
-                      const enabled = getFieldValue('retry_enabled')
-                      if (!enabled) return null
-                      return (
-                        <>
-                          <Space.Compact block>
-                            <Form.Item name="max_retries" label="最大重试次数" style={{ flex: 1 }}>
-                              <InputNumber min={1} max={10} style={{ width: '100%' }} />
-                            </Form.Item>
-                            <Form.Item name="backoff_type" label="退避策略" style={{ flex: 1 }}>
-                              <Select options={[
-                                { value: 'exponential', label: '指数退避 (1s → 2s → 4s...)' },
-                                { value: 'fixed', label: '固定间隔 (每次 1s)' },
-                              ]} />
-                            </Form.Item>
-                          </Space.Compact>
-                          <Form.Item name="retry_on_status" label="触发重试的 HTTP 状态码">
-                            <Select mode="tags" placeholder="输入状态码后回车添加"
-                              options={[502, 503, 504, 500, 408, 429].map(s => ({ value: s, label: String(s) }))}
-                            />
-                          </Form.Item>
-                          <Form.Item name="retry_on_methods" label="允许重试的 HTTP 方法"
-                            help="默认仅 GET，POST/PUT/DELETE 需显式添加">
-                            <Select mode="tags" placeholder="添加方法"
-                              options={['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m }))}
-                            />
-                          </Form.Item>
-                        </>
-                      )
-                    }}
-                  </Form.Item>
-                </>
-              ),
-            }, {
-              key: 'rate_limit',
-              label: '限流策略（可选）',
-              children: (
-                <>
-                  <Form.Item name="rate_limit_enabled" label="启用限流" valuePropName="checked"
-                    help="基于滑动窗口算法，限制单个工具在时间窗口内的最大请求数">
-                    <Switch />
-                  </Form.Item>
-                  <Form.Item noStyle shouldUpdate={(prev, cur) => prev.rate_limit_enabled !== cur.rate_limit_enabled}>
-                    {({ getFieldValue }) => {
-                      const enabled = getFieldValue('rate_limit_enabled')
-                      if (!enabled) return null
-                      return (
-                        <Space.Compact block>
-                          <Form.Item name="max_requests" label="最大请求数" style={{ flex: 1 }}
-                            help="窗口内允许的最大请求数">
-                            <InputNumber min={1} max={10000} style={{ width: '100%' }} />
-                          </Form.Item>
-                          <Form.Item name="window_seconds" label="窗口大小(秒)" style={{ flex: 1 }}
-                            help="滑动窗口的时间长度">
-                            <InputNumber min={1} max={3600} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Space.Compact>
-                      )
-                    }}
-                  </Form.Item>
-                </>
-              ),
-            }]}
-          />
+          {/* ── 高级配置 ── */}
+          <Card size="small" title="高级配置">
+            <Tabs
+              items={[
+                {
+                  key: 'retry',
+                  label: '重试策略',
+                  children: (
+                    <>
+                      <Form.Item name="retry_enabled" label="启用重试" valuePropName="checked">
+                        <Switch />
+                      </Form.Item>
+                      <Form.Item noStyle shouldUpdate={(prev, cur) => prev.retry_enabled !== cur.retry_enabled}>
+                        {({ getFieldValue }) => {
+                          if (!getFieldValue('retry_enabled')) return null
+                          return (
+                            <>
+                              <Row gutter={16}>
+                                <Col span={12}>
+                                  <Form.Item name="max_retries" label="最大重试次数">
+                                    <InputNumber min={1} max={10} style={{ width: '100%' }} />
+                                  </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                  <Form.Item name="backoff_type" label="退避策略">
+                                    <Select options={[
+                                      { value: 'exponential', label: '指数退避 (1s → 2s → 4s...)' },
+                                      { value: 'fixed', label: '固定间隔 (每次 1s)' },
+                                    ]} />
+                                  </Form.Item>
+                                </Col>
+                              </Row>
+                              <Form.Item name="retry_on_status" label="触发重试的 HTTP 状态码">
+                                <Select mode="tags" placeholder="输入状态码后回车"
+                                  options={[502, 503, 504, 500, 408, 429].map(s => ({ value: s, label: String(s) }))} />
+                              </Form.Item>
+                              <Form.Item name="retry_on_methods" label="允许重试的 HTTP 方法"
+                                help="默认仅 GET，POST/PUT/DELETE 需显式添加">
+                                <Select mode="tags" placeholder="添加方法"
+                                  options={METHOD_OPTIONS} />
+                              </Form.Item>
+                            </>
+                          )
+                        }}
+                      </Form.Item>
+                    </>
+                  ),
+                },
+                {
+                  key: 'rate_limit',
+                  label: '限流策略',
+                  children: (
+                    <>
+                      <Form.Item name="rate_limit_enabled" label="启用限流" valuePropName="checked"
+                        help="基于滑动窗口算法，限制单个工具在时间窗口内的最大请求数">
+                        <Switch />
+                      </Form.Item>
+                      <Form.Item noStyle shouldUpdate={(prev, cur) => prev.rate_limit_enabled !== cur.rate_limit_enabled}>
+                        {({ getFieldValue }) => {
+                          if (!getFieldValue('rate_limit_enabled')) return null
+                          return (
+                            <Row gutter={16}>
+                              <Col span={12}>
+                                <Form.Item name="max_requests" label="最大请求数" help="窗口内允许的最大请求数">
+                                  <InputNumber min={1} max={10000} style={{ width: '100%' }} />
+                                </Form.Item>
+                              </Col>
+                              <Col span={12}>
+                                <Form.Item name="window_seconds" label="窗口大小 (秒)" help="滑动窗口的时间长度">
+                                  <InputNumber min={1} max={3600} style={{ width: '100%' }} />
+                                </Form.Item>
+                              </Col>
+                            </Row>
+                          )
+                        }}
+                      </Form.Item>
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+
         </Form>
       </Modal>
     </div>
