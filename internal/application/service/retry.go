@@ -96,7 +96,12 @@ var backoffDuration = func(attempt int, backoffType string) time.Duration {
 
 // retryConfigProvider 接口，解耦 RetryConfig 具体类型
 type retryConfigProvider interface {
+	// GetMaxRetries 获取最大的重试次数
 	GetMaxRetries() int
+
+	// GetBackoffType 获取降级类型
 	GetBackoffType() string
+
+	// ShouldRetry 是否应该重试
 	ShouldRetry(method string, statusCode int) bool
 }
