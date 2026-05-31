@@ -12,6 +12,7 @@ import (
 	"github.com/sunpuxi/go-mcp-gateway/pkg/logger"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
 	sessionpkg "github.com/sunpuxi/go-mcp-gateway/internal/application/session"
+	"github.com/sunpuxi/go-mcp-gateway/internal/domain/circuitbreaker"
 	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	dbpkg "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/db"
 	infrahttp "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/http"
@@ -63,8 +64,11 @@ func main() {
 	// 创建鉴权服务
 	authService := domainservice.NewAuthService(clientRepo)
 
+	// 创建熔断器注册表（按 Project 维度，使用默认配置）
+	cbRegistry := circuitbreaker.NewRegistry(circuitbreaker.DefaultConfig())
+
 	// 创建 MCP 应用层服务
-	mcpSvc := appservice.NewMCPService(toolRepo, httpClient)
+	mcpSvc := appservice.NewMCPService(toolRepo, httpClient, cbRegistry)
 
 	// 创建 MCP Handler（传输层）
 	mcpHandler := mcphttp.NewHandler(sessionManager, mcpSvc, authService)

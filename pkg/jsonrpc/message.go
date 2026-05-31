@@ -77,6 +77,7 @@ const (
 	CodeRateLimit     = -32002 // 请求过于频繁
 	CodeParamInvalid  = -32003 // 参数校验失败
 	CodeDownstreamErr = -32005 // 下游服务异常
+	CodeCircuitOpen   = -32006 // 熔断打开，下游服务暂时不可用
 )
 
 // --- 解析通知 ---

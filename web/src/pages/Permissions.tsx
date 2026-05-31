@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Card, Button, Checkbox, Empty, Divider, Spin } from 'antd'
 import toast from 'react-hot-toast'
 import { Client, Tool, Project, getClients, getTools, getProjects, getClientPermissions, updateClientPermissions } from '../api'
+import { appendOperationLog } from '../utils/operationLog'
 
 function Permissions() {
   const [clients, setClients] = useState<Client[]>([])
@@ -63,6 +64,7 @@ function Permissions() {
     try {
       await updateClientPermissions(selectedClient, draft)
       toast.success('权限保存成功')
+      appendOperationLog('权限变更', currentClient?.name || selectedClient, `授予 ${draft.length} 个工具权限`)
     } catch (e: unknown) {
       toast.error('保存失败: ' + (e instanceof Error ? e.message : String(e)))
     } finally {

@@ -12,5 +12,6 @@ type CallToolInput struct {
 type CallToolOutput struct {
 	Result          *mcp.ToolCallResult
 	AuthError       string // 非空时表示鉴权失败
+	CircuitOpen     string // 非空时表示熔断打开，下游服务暂时不可用
 	DownstreamError string // 非空时表示下游服务异常（网络错误 / 5xx）
 }

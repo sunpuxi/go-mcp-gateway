@@ -1,0 +1,49 @@
+/* ── CSS 变量 ── */
+:root {
+  --color-bg-layout: #f5f7fa;
+  --color-bg-container: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-subtle: #fafbfc;
+  --color-text-primary: #1a1a2e;
+  --color-text-secondary: #8c8c8c;
+  --color-text-tertiary: #bfbfbf;
+  --color-border: #f0f0f0;
+  --color-border-light: #f5f5f5;
+  --color-primary: #1677ff;
+  --color-primary-bg: #e6f4ff;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-header: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+/* ── 暗色模式 ── */
+[data-theme='dark'] {
+  --color-bg-layout: #141414;
+  --color-bg-container: #1f1f1f;
+  --color-bg-elevated: #2a2a2a;
+  --color-bg-subtle: #1a1a1a;
+  --color-text-primary: #e8e8e8;
+  --color-text-secondary: #a0a0a0;
+  --color-text-tertiary: #666;
+  --color-border: #303030;
+  --color-border-light: #262626;
+  --color-primary: #1677ff;
+  --color-primary-bg: #111d2c;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-header: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ── 全局重置 ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--color-bg-layout);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}

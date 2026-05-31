@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin, Collapse } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined, ReloadOutlined } from '@ant-design/icons'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin, Collapse, Dropdown } from 'antd'
+import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined, ReloadOutlined, SearchOutlined, DownloadOutlined, FilterOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
 import { Tool, ToolForm, ParamRule, RetryConfig, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
+import { appendOperationLog } from '../utils/operationLog'
+import { exportToCSV } from '../utils/export'
 
 const httpColors: Record<string, string> = {
   GET: 'green', POST: 'blue', PUT: 'orange', DELETE: 'red', PATCH: 'purple',
@@ -17,6 +19,13 @@ function Tools() {
   const [saving, setSaving] = useState(false)
   const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set())
   const [form] = Form.useForm()
+
+  // 筛选状态
+  const [searchText, setSearchText] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
+  const [methodFilter, setMethodFilter] = useState<string>('all')
+  const [projectFilter, setProjectFilter] = useState<string>('all')
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -43,6 +52,22 @@ function Tools() {
     return projects.find(p => p.project_id === projectId)?.name || projectId
   }
 
+  // 客户端筛选
+  const filteredData = useMemo(() => {
+    return tools.filter(t => {
+      const matchSearch = !searchText ||
+        t.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        t.title.toLowerCase().includes(searchText.toLowerCase()) ||
+        (t.description && t.description.toLowerCase().includes(searchText.toLowerCase()))
+      const matchStatus = statusFilter === 'all' ||
+        (statusFilter === 'enabled' && t.status === 1) ||
+        (statusFilter === 'disabled' && t.status === 0)
+      const matchMethod = methodFilter === 'all' || t.http_method === methodFilter
+      const matchProject = projectFilter === 'all' || t.project_id === projectFilter
+      return matchSearch && matchStatus && matchMethod && matchProject
+    })
+  }, [tools, searchText, statusFilter, methodFilter, projectFilter])
+
   const columns = [
     {
       title: '工具名称', dataIndex: 'name', key: 'name', width: 140,
@@ -56,6 +81,7 @@ function Tools() {
     {
       title: '标题', dataIndex: 'title', key: 'title', width: 160,
       ellipsis: { showTitle: false },
+      responsive: ['md' as const],
       render: (v: string) => <Tooltip title={v}><span>{v}</span></Tooltip>,
     },
     {
@@ -72,6 +98,7 @@ function Tools() {
     },
     {
       title: 'URL 模板', dataIndex: 'url_template', key: 'url_template',
+      responsive: ['lg' as const],
       render: (v: string) => <code style={{ fontSize: 13, background: '#f5f5f5', padding: '2px 6px', borderRadius: 4 }}>{v}</code>,
     },
     {
@@ -82,6 +109,7 @@ function Tools() {
     },
     {
       title: '超时', dataIndex: 'timeout_ms', key: 'timeout_ms', width: 90, align: 'center' as const,
+      responsive: ['sm' as const],
       render: (v: number) => <span style={{ color: '#666' }}>{v}ms</span>,
     },
     {
@@ -167,9 +195,11 @@ function Tools() {
       if (editing) {
         await updateTool(editing.tool_id, payload)
         toast.success('工具更新成功')
+        appendOperationLog('编辑', payload.name, `更新工具 #${editing.tool_id}`)
       } else {
         await createTool(payload)
         toast.success('工具创建成功')
+        appendOperationLog('新增', payload.name, `创建工具 ${payload.project_id}/${payload.name}`)
       }
       setOpen(false)
       await loadData()
@@ -186,7 +216,6 @@ function Tools() {
 
     setTogglingIds(prev => new Set(prev).add(id))
     try {
-      // 全量提交，仅修改 status，避免全量覆盖丢失其他字段
       const payload: ToolForm = {
         project_id: tool.project_id,
         name: tool.name,
@@ -201,6 +230,7 @@ function Tools() {
       }
       await updateTool(id, payload)
       toast.success(checked ? '工具已启用' : '工具已禁用')
+      appendOperationLog(checked ? '启用' : '停用', tool.name, `切换工具 #${id} 状态`)
       await loadData()
     } catch (e: unknown) {
       toast.error('操作失败: ' + (e instanceof Error ? e.message : String(e)))
@@ -217,30 +247,141 @@ function Tools() {
     try {
       await deleteTool(id)
       toast.success('工具已删除')
+      appendOperationLog('删除', `#${id}`, '删除工具定义')
       await loadData()
     } catch (e: unknown) {
       toast.error('删除失败: ' + (e instanceof Error ? e.message : String(e)))
     }
   }
 
+  // 批量删除
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) return
+    setLoading(true)
+    let successCount = 0
+    for (const id of selectedRowKeys) {
+      try {
+        await deleteTool(id as number)
+        appendOperationLog('删除', `#${id}`, '批量删除工具')
+        successCount++
+      } catch {
+        toast.error(`删除工具 #${id} 失败`)
+      }
+    }
+    setSelectedRowKeys([])
+    setLoading(false)
+    if (successCount > 0) toast.success(`成功删除 ${successCount} 个工具`)
+    await loadData()
+  }
+
+  const handleExport = (format: 'csv' | 'json') => {
+    const exportColumns = [
+      { title: '名称', dataIndex: 'name' },
+      { title: '标题', dataIndex: 'title' },
+      { title: '所属项目', dataIndex: 'project_id' },
+      { title: 'HTTP方法', dataIndex: 'http_method' },
+      { title: 'URL模板', dataIndex: 'url_template' },
+      { title: '超时', dataIndex: 'timeout_ms' },
+      { title: '状态', dataIndex: 'status' },
+    ]
+    if (format === 'csv') {
+      exportToCSV(filteredData, exportColumns, 'tools')
+    } else {
+      import('../utils/export').then(({ exportToJSON }) => {
+        exportToJSON(filteredData, 'tools')
+      })
+    }
+    toast.success(`已导出 ${filteredData.length} 条记录`)
+  }
+
   return (
     <div>
       <div className="page-header">
         <h2>工具管理</h2>
-        <Space>
+        <Space wrap>
           <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>刷新</Button>
+          <Dropdown menu={{
+            items: [
+              { key: 'csv', label: '导出 CSV', onClick: () => handleExport('csv') },
+              { key: 'json', label: '导出 JSON', onClick: () => handleExport('json') },
+            ],
+          }}>
+            <Button icon={<DownloadOutlined />}>导出</Button>
+          </Dropdown>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建工具</Button>
         </Space>
       </div>
+
+      {/* 筛选栏 */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Space wrap>
+          <Input
+            placeholder="搜索工具名称 / 标题…"
+            prefix={<SearchOutlined />}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            style={{ width: 240 }}
+            allowClear
+          />
+          <Select
+            value={projectFilter}
+            onChange={v => setProjectFilter(v)}
+            style={{ width: 140 }}
+            placeholder="所属项目"
+            options={[
+              { value: 'all', label: '全部项目' },
+              ...projectOptions.map(p => ({ value: p.value, label: p.label })),
+            ]}
+            prefix={<FilterOutlined />}
+          />
+          <Select
+            value={methodFilter}
+            onChange={v => setMethodFilter(v)}
+            style={{ width: 100 }}
+            options={[
+              { value: 'all', label: '全部方法' },
+              ...['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => ({ value: m, label: m })),
+            ]}
+          />
+          <Select
+            value={statusFilter}
+            onChange={v => setStatusFilter(v)}
+            style={{ width: 110 }}
+            options={[
+              { value: 'all', label: '全部状态' },
+              { value: 'enabled', label: '已启用' },
+              { value: 'disabled', label: '已禁用' },
+            ]}
+          />
+          {selectedRowKeys.length > 0 && (
+            <Popconfirm
+              title="批量删除"
+              description={`确定删除选中的 ${selectedRowKeys.length} 个工具？`}
+              onConfirm={handleBatchDelete}
+              okText="确认删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger icon={<DeleteOutlined />}>
+                删除选中 ({selectedRowKeys.length})
+              </Button>
+            </Popconfirm>
+          )}
+        </Space>
+      </Card>
 
       <Card styles={{ body: { padding: 0 } }}>
         <Spin spinning={loading}>
           <Table
             rowKey="tool_id"
             columns={columns}
-            dataSource={tools}
+            dataSource={filteredData}
             size="middle"
             scroll={{ x: 1100 }}
+            rowSelection={{
+              selectedRowKeys,
+              onChange: setSelectedRowKeys,
+            }}
             pagination={{
               pageSize: 20,
               showSizeChanger: true,
@@ -262,6 +403,7 @@ function Tools() {
         cancelText="取消"
         confirmLoading={saving}
         destroyOnClose
+        styles={{ body: { maxHeight: '65vh', overflowY: 'auto' } }}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Space.Compact block>

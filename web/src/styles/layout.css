@@ -1,0 +1,26 @@
+/* ── Sidebar Logo ── */
+.logo {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Header GitHub link ── */
+.gh-link {
+  transition: color 0.2s;
+}
+.gh-link:hover {
+  color: #1677ff !important;
+}
+
+/* ── Sider 折叠动画 ── */
+.ant-layout-sider {
+  transition: all 0.2s ease;
+}
