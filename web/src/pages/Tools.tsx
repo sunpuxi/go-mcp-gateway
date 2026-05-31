@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, Popconfirm, Tag, Tooltip, Card, Switch, Spin, Collapse, Dropdown } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, ApiOutlined, ReloadOutlined, SearchOutlined, DownloadOutlined, FilterOutlined } from '@ant-design/icons'
 import toast from 'react-hot-toast'
-import { Tool, ToolForm, ParamRule, RetryConfig, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
+import { Tool, ToolForm, ParamRule, RetryConfig, RateLimitConfig, Project, getTools, createTool, updateTool, deleteTool, getProjects } from '../api'
 import { appendOperationLog } from '../utils/operationLog'
 import { exportToCSV } from '../utils/export'
 
@@ -108,6 +108,20 @@ function Tools() {
       ),
     },
     {
+      title: '限流', key: 'rate_limit', width: 80, align: 'center' as const,
+      render: (_: unknown, r: Tool) => {
+        const cfg = r.rate_limit_config
+        if (cfg && cfg.max_requests > 0) {
+          return (
+            <Tooltip title={`${cfg.max_requests} 次 / ${cfg.window_seconds}s`}>
+              <Tag color="orange">{cfg.max_requests}/{cfg.window_seconds}s</Tag>
+            </Tooltip>
+          )
+        }
+        return <Tag color="default">不限</Tag>
+      },
+    },
+    {
       title: '超时', dataIndex: 'timeout_ms', key: 'timeout_ms', width: 90, align: 'center' as const,
       responsive: ['sm' as const],
       render: (v: number) => <span style={{ color: '#666' }}>{v}ms</span>,
@@ -153,6 +167,7 @@ function Tools() {
       http_method: 'GET', url_template: '', timeout_ms: 5000, status: true, params: [],
       retry_enabled: false, max_retries: 3, backoff_type: 'exponential',
       retry_on_status: [502, 503, 504], retry_on_methods: ['GET'],
+      rate_limit_enabled: false, max_requests: 100, window_seconds: 1,
     })
     setOpen(true)
   }
@@ -160,6 +175,7 @@ function Tools() {
   const openEdit = (t: Tool) => {
     setEditing(t)
     const rc = t.retry_config
+    const rlc = t.rate_limit_config
     form.setFieldsValue({
       ...t, status: t.status === 1,
       retry_enabled: !!(rc && rc.max_retries > 0),
@@ -167,6 +183,9 @@ function Tools() {
       backoff_type: rc?.backoff_type ?? 'exponential',
       retry_on_status: rc?.retry_on_status ?? [502, 503, 504],
       retry_on_methods: rc?.retry_on_methods ?? ['GET'],
+      rate_limit_enabled: !!(rlc && rlc.max_requests > 0),
+      max_requests: rlc?.max_requests ?? 100,
+      window_seconds: rlc?.window_seconds ?? 1,
     })
     setOpen(true)
   }
@@ -189,6 +208,10 @@ function Tools() {
           backoff_type: values.backoff_type ?? 'exponential',
           retry_on_status: values.retry_on_status ?? [502, 503, 504],
           retry_on_methods: values.retry_on_methods ?? ['GET'],
+        } : null,
+        rate_limit_config: values.rate_limit_enabled ? {
+          max_requests: values.max_requests ?? 100,
+          window_seconds: values.window_seconds ?? 1,
         } : null,
         status: values.status ? 1 : 0,
       }
@@ -226,6 +249,7 @@ function Tools() {
         timeout_ms: tool.timeout_ms,
         params: tool.params || [],
         retry_config: tool.retry_config,
+        rate_limit_config: tool.rate_limit_config,
         status: checked ? 1 : 0,
       }
       await updateTool(id, payload)
@@ -377,7 +401,7 @@ function Tools() {
             columns={columns}
             dataSource={filteredData}
             size="middle"
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1200 }}
             rowSelection={{
               selectedRowKeys,
               onChange: setSelectedRowKeys,
@@ -549,6 +573,35 @@ function Tools() {
                             />
                           </Form.Item>
                         </>
+                      )
+                    }}
+                  </Form.Item>
+                </>
+              ),
+            }, {
+              key: 'rate_limit',
+              label: '限流策略（可选）',
+              children: (
+                <>
+                  <Form.Item name="rate_limit_enabled" label="启用限流" valuePropName="checked"
+                    help="基于滑动窗口算法，限制单个工具在时间窗口内的最大请求数">
+                    <Switch />
+                  </Form.Item>
+                  <Form.Item noStyle shouldUpdate={(prev, cur) => prev.rate_limit_enabled !== cur.rate_limit_enabled}>
+                    {({ getFieldValue }) => {
+                      const enabled = getFieldValue('rate_limit_enabled')
+                      if (!enabled) return null
+                      return (
+                        <Space.Compact block>
+                          <Form.Item name="max_requests" label="最大请求数" style={{ flex: 1 }}
+                            help="窗口内允许的最大请求数">
+                            <InputNumber min={1} max={10000} style={{ width: '100%' }} />
+                          </Form.Item>
+                          <Form.Item name="window_seconds" label="窗口大小(秒)" style={{ flex: 1 }}
+                            help="滑动窗口的时间长度">
+                            <InputNumber min={1} max={3600} style={{ width: '100%' }} />
+                          </Form.Item>
+                        </Space.Compact>
                       )
                     }}
                   </Form.Item>

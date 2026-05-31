@@ -11,6 +11,7 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Admin    AdminConfig    `yaml:"admin"`
 	Database DatabaseConfig `yaml:"database"`
+	Redis    RedisConfig    `yaml:"redis"`
 	Log      LogConfig      `yaml:"log"`
 }
 
@@ -30,6 +31,12 @@ type ServerConfig struct {
 
 type DatabaseConfig struct {
 	DSN string `yaml:"dsn"`
+}
+
+type RedisConfig struct {
+	Addr     string `yaml:"addr"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 func Load(path string) (*Config, error) {
@@ -63,6 +70,17 @@ func Load(path string) (*Config, error) {
 	}
 	if v := os.Getenv("LOG_FORMAT"); v != "" {
 		cfg.Log.Format = v
+	}
+	if v := os.Getenv("REDIS_ADDR"); v != "" {
+		cfg.Redis.Addr = v
+	}
+	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
+		cfg.Redis.Password = v
+	}
+	if v := os.Getenv("REDIS_DB"); v != "" {
+		if db, err := strconv.Atoi(v); err == nil {
+			cfg.Redis.DB = db
+		}
 	}
 
 	// 日志默认值

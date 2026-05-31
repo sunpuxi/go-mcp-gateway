@@ -14,8 +14,9 @@ type ToolDTO struct {
 	BaseURL     string             `json:"base_url"`
 	TimeoutMs   int                `json:"timeout_ms"`
 	Params      []entity.ParamRule `json:"params"`
-	RetryConfig *entity.RetryConfig `json:"retry_config,omitempty"`
-	Status      int                `json:"status"`
+	RetryConfig     *entity.RetryConfig     `json:"retry_config,omitempty"`
+	RateLimitConfig *entity.RateLimitConfig `json:"rate_limit_config,omitempty"`
+	Status          int                    `json:"status"`
 	CreatedAt   string             `json:"created_at"`
 	UpdatedAt   string             `json:"updated_at"`
 }

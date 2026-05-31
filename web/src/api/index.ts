@@ -36,6 +36,11 @@ export interface RetryConfig {
   retry_on_methods: string[]
 }
 
+export interface RateLimitConfig {
+  max_requests: number
+  window_seconds: number
+}
+
 export interface Tool {
   tool_id: number
   project_id: string
@@ -47,6 +52,7 @@ export interface Tool {
   timeout_ms: number
   params: ParamRule[]
   retry_config?: RetryConfig | null
+  rate_limit_config?: RateLimitConfig | null
   status: number
   created_at?: string
   updated_at?: string
@@ -62,6 +68,7 @@ export interface ToolForm {
   timeout_ms: number
   params: ParamRule[]
   retry_config?: RetryConfig | null
+  rate_limit_config?: RateLimitConfig | null
   status: number
 }
 

@@ -16,6 +16,8 @@ import (
 	domainservice "github.com/sunpuxi/go-mcp-gateway/internal/domain/service"
 	dbpkg "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/db"
 	infrahttp "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/http"
+	"github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/ratelimit"
+	redisinfra "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/redis"
 	adminhttp "github.com/sunpuxi/go-mcp-gateway/internal/interface/admin"
 	healthhttp "github.com/sunpuxi/go-mcp-gateway/internal/interface/health"
 	mcphttp "github.com/sunpuxi/go-mcp-gateway/internal/interface/mcp"
@@ -67,8 +69,24 @@ func main() {
 	// 创建熔断器注册表（按 Project 维度，使用默认配置）
 	cbRegistry := circuitbreaker.NewRegistry(circuitbreaker.DefaultConfig())
 
+	// 创建限流器（Redis 不可用时降级为 NoopLimiter）
+	var rateLimiter ratelimit.RateLimiter
+	if cfg.Redis.Addr != "" {
+		redisClient, err := redisinfra.NewRedis(cfg.Redis)
+		if err != nil {
+			logger.Warn("Redis 连接失败，限流降级为放行模式", "addr", cfg.Redis.Addr, "error", err)
+			rateLimiter = &ratelimit.NoopLimiter{}
+		} else {
+			logger.Info("Redis 连接成功，限流器已启用", "addr", cfg.Redis.Addr)
+			rateLimiter = ratelimit.NewRedisLimiter(redisClient)
+			defer redisClient.Close()
+		}
+	} else {
+		rateLimiter = &ratelimit.NoopLimiter{}
+	}
+
 	// 创建 MCP 应用层服务
-	mcpSvc := appservice.NewMCPService(toolRepo, httpClient, cbRegistry)
+	mcpSvc := appservice.NewMCPService(toolRepo, httpClient, cbRegistry, rateLimiter)
 
 	// 创建 MCP Handler（传输层）
 	mcpHandler := mcphttp.NewHandler(sessionManager, mcpSvc, authService)

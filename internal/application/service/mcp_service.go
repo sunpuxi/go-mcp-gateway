@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -10,19 +11,21 @@ import (
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/mapper"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/repository"
 	infrahttp "github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/http"
+	"github.com/sunpuxi/go-mcp-gateway/internal/infrastructure/ratelimit"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/logger"
 	"github.com/sunpuxi/go-mcp-gateway/pkg/mcp"
 )
 
 // MCPService 应用层服务，组装领域层的工具相关操作
 type MCPService struct {
-	toolRepo   repository.ToolQuerier
-	httpClient *infrahttp.HTTPClient
-	cbRegistry *circuitbreaker.Registry // 熔断器注册表（可为 nil，表示不启用熔断）
+	toolRepo    repository.ToolQuerier
+	httpClient  *infrahttp.HTTPClient
+	cbRegistry  *circuitbreaker.Registry  // 熔断器注册表（可为 nil，表示不启用熔断）
+	rateLimiter ratelimit.RateLimiter     // 限流器（nil 时使用 NoopLimiter 放行）
 }
 
-func NewMCPService(toolRepo repository.ToolQuerier, httpClient *infrahttp.HTTPClient, cbRegistry *circuitbreaker.Registry) *MCPService {
-	return &MCPService{toolRepo: toolRepo, httpClient: httpClient, cbRegistry: cbRegistry}
+func NewMCPService(toolRepo repository.ToolQuerier, httpClient *infrahttp.HTTPClient, cbRegistry *circuitbreaker.Registry, rateLimiter ratelimit.RateLimiter) *MCPService {
+	return &MCPService{toolRepo: toolRepo, httpClient: httpClient, cbRegistry: cbRegistry, rateLimiter: rateLimiter}
 }
 
 // ListTools 获取客户端有权限的 MCP 工具定义列表
@@ -72,6 +75,32 @@ func (s *MCPService) CallTool(input command.CallToolInput, permissions []string)
 	tool, err := s.toolRepo.FindByName(input.Name)
 	if err != nil {
 		return nil, fmt.Errorf("工具不存在: %s", input.Name)
+	}
+
+	// 1.5 限流检查（在参数映射前，避免浪费计算资源）
+	if cfg := tool.RateLimitConfig; cfg != nil && cfg.IsEnabled() {
+		key := "rate_limit:tool:" + input.Name
+		allowed, remaining, rlErr := s.getRateLimiter().Allow(context.Background(), key, cfg.MaxRequests, cfg.WindowSeconds)
+		if rlErr != nil {
+			logger.Warn("限流检查异常，降级放行",
+				"tool_name", input.Name,
+				"error", rlErr,
+			)
+		} else if !allowed {
+			logger.Warn("触发限流",
+				"tool_name", input.Name,
+				"max_requests", cfg.MaxRequests,
+				"window_seconds", cfg.WindowSeconds,
+			)
+			return &command.CallToolOutput{
+				RateLimited: fmt.Sprintf("工具 %s 请求过于频繁，请稍后重试", input.Name),
+			}, nil
+		} else {
+			logger.Debug("限流检查通过",
+				"tool_name", input.Name,
+				"remaining", remaining,
+			)
+		}
 	}
 
 	// 2. 参数映射（MCP arguments → HTTP path/query/body/header）
@@ -151,6 +180,14 @@ func (s *MCPService) getCircuitBreaker(projectID string) *circuitbreaker.Circuit
 		return nil
 	}
 	return s.cbRegistry.Get(projectID)
+}
+
+// getRateLimiter 返回限流器实例，nil 时降级为 NoopLimiter
+func (s *MCPService) getRateLimiter() ratelimit.RateLimiter {
+	if s.rateLimiter == nil {
+		return &ratelimit.NoopLimiter{}
+	}
+	return s.rateLimiter
 }
 
 // hasPermission 检查工具名是否在权限列表中

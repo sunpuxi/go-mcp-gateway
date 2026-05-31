@@ -19,8 +19,9 @@ type ToolModel struct {
 	BaseURL     string           `db:"base_url"`
 	TimeoutMs   int              `db:"timeout_ms"`
 	Params      *json.RawMessage `db:"params"`
-	RetryConfig *json.RawMessage `db:"retry_config"`
-	Status      int              `db:"status"`
+	RetryConfig     *json.RawMessage `db:"retry_config"`
+	RateLimitConfig *json.RawMessage `db:"rate_limit_config"`
+	Status          int              `db:"status"`
 	CreatedAt   time.Time        `db:"created_at"`
 	UpdatedAt   time.Time        `db:"updated_at"`
 }
@@ -38,8 +39,9 @@ func (m *ToolModel) ToEntity() entity.Tool {
 		BaseURL:     m.BaseURL,
 		TimeoutMs:   m.TimeoutMs,
 		Params:      m.Params,
-		RetryConfig: parseRetryConfigSafe(m.RetryConfig),
-		Status:      m.Status,
+		RetryConfig:     parseRetryConfigSafe(m.RetryConfig),
+		RateLimitConfig: parseRateLimitConfigSafe(m.RateLimitConfig),
+		Status:          m.Status,
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
 	}
@@ -48,6 +50,15 @@ func (m *ToolModel) ToEntity() entity.Tool {
 // parseRetryConfigSafe 安全解析 retry_config JSON，解析失败返回 nil（不阻塞主流程）
 func parseRetryConfigSafe(raw *json.RawMessage) *entity.RetryConfig {
 	cfg, err := entity.ParseRetryConfig(raw)
+	if err != nil {
+		return nil
+	}
+	return cfg
+}
+
+// parseRateLimitConfigSafe 安全解析 rate_limit_config JSON，解析失败返回 nil
+func parseRateLimitConfigSafe(raw *json.RawMessage) *entity.RateLimitConfig {
+	cfg, err := entity.ParseRateLimitConfig(raw)
 	if err != nil {
 		return nil
 	}

@@ -183,20 +183,21 @@ func (s *AdminService) ListTools(page, size int) ([]dto.ToolDTO, int, error) {
 			rules = []entity.ParamRule{}
 		}
 		dtos[i] = dto.ToolDTO{
-			ToolID:      t.ToolID,
-			ProjectID:   t.ProjectID,
-			Name:        t.Name,
-			Title:       t.Title,
-			Description: t.Description,
-			HTTPMethod:  t.HTTPMethod,
-			URLTemplate: t.URLTemplate,
-			BaseURL:     t.BaseURL,
-			TimeoutMs:   t.TimeoutMs,
-			Params:      rules,
-			RetryConfig: t.RetryConfig,
-			Status:      t.Status,
-			CreatedAt:   t.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:   t.UpdatedAt.Format("2006-01-02 15:04:05"),
+			ToolID:          t.ToolID,
+			ProjectID:       t.ProjectID,
+			Name:            t.Name,
+			Title:           t.Title,
+			Description:     t.Description,
+			HTTPMethod:      t.HTTPMethod,
+			URLTemplate:     t.URLTemplate,
+			BaseURL:         t.BaseURL,
+			TimeoutMs:       t.TimeoutMs,
+			Params:          rules,
+			RetryConfig:     t.RetryConfig,
+			RateLimitConfig: t.RateLimitConfig,
+			Status:          t.Status,
+			CreatedAt:       t.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:       t.UpdatedAt.Format("2006-01-02 15:04:05"),
 		}
 	}
 	return dtos, total, nil
@@ -208,16 +209,17 @@ func (s *AdminService) CreateTool(req dto.ToolDTO) (*dto.ToolDTO, error) {
 	raw := json.RawMessage(paramsJSON)
 
 	tool := &entity.Tool{
-		ProjectID:   req.ProjectID,
-		Name:        req.Name,
-		Title:       req.Title,
-		Description: req.Description,
-		HTTPMethod:  req.HTTPMethod,
-		URLTemplate: req.URLTemplate,
-		TimeoutMs:   req.TimeoutMs,
-		Params:      &raw,
-		RetryConfig: req.RetryConfig,
-		Status:      req.Status,
+		ProjectID:       req.ProjectID,
+		Name:            req.Name,
+		Title:           req.Title,
+		Description:     req.Description,
+		HTTPMethod:      req.HTTPMethod,
+		URLTemplate:     req.URLTemplate,
+		TimeoutMs:       req.TimeoutMs,
+		Params:          &raw,
+		RetryConfig:     req.RetryConfig,
+		RateLimitConfig: req.RateLimitConfig,
+		Status:          req.Status,
 	}
 
 	if err := s.toolRepo.Create(tool); err != nil {
@@ -266,6 +268,8 @@ func (s *AdminService) UpdateTool(toolID int64, req dto.ToolDTO) (*dto.ToolDTO, 
 	}
 	// RetryConfig：nil 表示不修改，非 nil 直接覆盖（允许设为 nil 关闭重试）
 	existing.RetryConfig = req.RetryConfig
+	// RateLimitConfig：nil 表示不修改，非 nil 直接覆盖
+	existing.RateLimitConfig = req.RateLimitConfig
 	// Status 始终应用（0=禁用 是合法值）
 	existing.Status = req.Status
 

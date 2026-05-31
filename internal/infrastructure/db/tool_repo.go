@@ -31,9 +31,9 @@ func NewToolRepo(db *sqlx.DB) *ToolRepo {
 // ListEnabled 查询所有启用的工具（含关联的 Project base_url）
 func (r *ToolRepo) ListEnabled() ([]entity.Tool, error) {
 	sqlStr := `SELECT t.*, p.base_url
-FROM tools t
-JOIN projects p ON t.project_id = p.project_id
-WHERE t.status = 1 AND p.status = 1`
+	FROM tools t
+	JOIN projects p ON t.project_id = p.project_id
+	WHERE t.status = 1 AND p.status = 1`
 
 	var models []model.ToolModel
 	if err := r.db.Select(&models, sqlStr); err != nil {
@@ -50,10 +50,10 @@ WHERE t.status = 1 AND p.status = 1`
 // FindByName 根据工具名查询（含关联的 Project base_url）
 func (r *ToolRepo) FindByName(name string) (*entity.Tool, error) {
 	sqlStr := `SELECT t.*, p.base_url
-FROM tools t
-JOIN projects p ON t.project_id = p.project_id
-WHERE t.name = ? AND t.status = 1 AND p.status = 1
-LIMIT 1`
+	FROM tools t
+	JOIN projects p ON t.project_id = p.project_id
+	WHERE t.name = ? AND t.status = 1 AND p.status = 1
+	LIMIT 1`
 
 	var m model.ToolModel
 	if err := r.db.Get(&m, sqlStr, name); err != nil {
@@ -75,9 +75,9 @@ func (r *ToolRepo) ListAll(page, size int) ([]entity.Tool, int, error) {
 
 	offset := (page - 1) * size
 	query := `SELECT t.*, p.base_url
-FROM tools t
-JOIN projects p ON t.project_id = p.project_id
-ORDER BY t.tool_id DESC LIMIT ? OFFSET ?`
+	FROM tools t
+	JOIN projects p ON t.project_id = p.project_id
+	ORDER BY t.tool_id DESC LIMIT ? OFFSET ?`
 
 	var models []model.ToolModel
 	if err := r.db.Select(&models, query, size, offset); err != nil {
@@ -94,9 +94,9 @@ ORDER BY t.tool_id DESC LIMIT ? OFFSET ?`
 // FindByID 按 tool_id 查找
 func (r *ToolRepo) FindByID(toolID int64) (*entity.Tool, error) {
 	query := `SELECT t.*, p.base_url
-FROM tools t
-JOIN projects p ON t.project_id = p.project_id
-WHERE t.tool_id = ?`
+	FROM tools t
+	JOIN projects p ON t.project_id = p.project_id
+	WHERE t.tool_id = ?`
 
 	var m model.ToolModel
 	if err := r.db.Get(&m, query, toolID); err != nil {
@@ -109,14 +109,16 @@ WHERE t.tool_id = ?`
 	return &t, nil
 }
 
-// Create 新建工具，params 和 retry_config 为 JSON
+// Create 新建工具，params、retry_config 和 rate_limit_config 为 JSON
 func (r *ToolRepo) Create(tool *entity.Tool) error {
-	query := `INSERT INTO tools (project_id, name, title, description, http_method, url_template, timeout_ms, params, retry_config, status)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO tools (project_id, name, title, description, http_method, url_template, timeout_ms, params, retry_config, rate_limit_config, status)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	result, err := r.db.Exec(query,
 		tool.ProjectID, tool.Name, tool.Title, tool.Description,
 		tool.HTTPMethod, tool.URLTemplate, tool.TimeoutMs, tool.Params,
-		retryConfigToRaw(tool.RetryConfig), tool.Status,
+		retryConfigToRaw(tool.RetryConfig),
+		rateLimitConfigToRaw(tool.RateLimitConfig),
+		tool.Status,
 	)
 	if err != nil {
 		return err
@@ -129,11 +131,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 // Update 更新工具
 func (r *ToolRepo) Update(tool *entity.Tool) error {
 	query := `UPDATE tools SET project_id=?, name=?, title=?, description=?, http_method=?,
-url_template=?, timeout_ms=?, params=?, retry_config=?, status=? WHERE tool_id=?`
+	url_template=?, timeout_ms=?, params=?, retry_config=?, rate_limit_config=?, status=? WHERE tool_id=?`
 	_, err := r.db.Exec(query,
 		tool.ProjectID, tool.Name, tool.Title, tool.Description,
 		tool.HTTPMethod, tool.URLTemplate, tool.TimeoutMs, tool.Params,
 		retryConfigToRaw(tool.RetryConfig),
+		rateLimitConfigToRaw(tool.RateLimitConfig),
 		tool.Status, tool.ToolID,
 	)
 	return err
@@ -141,6 +144,19 @@ url_template=?, timeout_ms=?, params=?, retry_config=?, status=? WHERE tool_id=?
 
 // retryConfigToRaw 将 RetryConfig 转为 json.RawMessage（nil → nil）
 func retryConfigToRaw(cfg *entity.RetryConfig) *json.RawMessage {
+	if cfg == nil {
+		return nil
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return nil
+	}
+	raw := json.RawMessage(data)
+	return &raw
+}
+
+// rateLimitConfigToRaw 将 RateLimitConfig 转为 json.RawMessage（nil → nil）
+func rateLimitConfigToRaw(cfg *entity.RateLimitConfig) *json.RawMessage {
 	if cfg == nil {
 		return nil
 	}

@@ -219,6 +219,10 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeAuthError, output.AuthError))
 		return
 	}
+	if output.RateLimited != "" {
+		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeRateLimit, output.RateLimited))
+		return
+	}
 	if output.CircuitOpen != "" {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeCircuitOpen, output.CircuitOpen))
 		return
