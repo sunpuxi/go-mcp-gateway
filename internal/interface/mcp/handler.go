@@ -215,20 +215,8 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidParams, err.Error()))
 		return
 	}
-	if output.AuthError != "" {
-		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeAuthError, output.AuthError))
-		return
-	}
-	if output.RateLimited != "" {
-		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeRateLimit, output.RateLimited))
-		return
-	}
-	if output.CircuitOpen != "" {
-		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeCircuitOpen, output.CircuitOpen))
-		return
-	}
-	if output.DownstreamError != "" {
-		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeDownstreamErr, output.DownstreamError))
+	if output.Reject != nil {
+		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, rejectCode(output.Reject.Type), output.Reject.Message))
 		return
 	}
 
@@ -238,6 +226,22 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 // ============================================================================
 //  辅助方法
 // ============================================================================
+
+// rejectCode 将 RejectType 映射到 JSON-RPC 错误码
+func rejectCode(t appcommand.RejectType) int {
+	switch t {
+	case appcommand.RejectAuth:
+		return jsonrpc.CodeAuthError
+	case appcommand.RejectRateLimit:
+		return jsonrpc.CodeRateLimit
+	case appcommand.RejectCircuitOpen:
+		return jsonrpc.CodeCircuitOpen
+	case appcommand.RejectDownstreamErr:
+		return jsonrpc.CodeDownstreamErr
+	default:
+		return jsonrpc.CodeInternalError
+	}
+}
 
 func (h *Handler) sendSSE(sessionID string, resp *jsonrpc.Response) {
 	session, ok := h.sessionManager.Get(sessionID)
