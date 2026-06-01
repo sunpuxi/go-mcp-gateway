@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
+	"github.com/didi/gendry/builder"
 	"github.com/jmoiron/sqlx"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/entity"
 	"github.com/sunpuxi/go-mcp-gateway/internal/domain/repository"
@@ -12,6 +15,12 @@ import (
 )
 
 var _ repository.ClientRepository = (*ClientRepo)(nil)
+
+// clientSelectFields 是 clients 表查询的共享字段列表
+var clientSelectFields = []string{
+	"client_id", "name", "api_key_hash", "api_key_prefix",
+	"description", "status", "created_at", "updated_at",
+}
 
 // ClientRepo 是 ClientRepository 的 MySQL 实现
 type ClientRepo struct {
@@ -27,11 +36,17 @@ func NewClientRepo(db *sqlx.DB) *ClientRepo {
 
 // FindByAPIKeyHash 根据 API Key 的 SHA256 哈希查找客户端
 func (r *ClientRepo) FindByAPIKeyHash(ctx context.Context, hash string) (*entity.Client, error) {
-	query := `SELECT client_id, name, api_key_hash, api_key_prefix, description, status, created_at, updated_at
-FROM clients WHERE api_key_hash = ? LIMIT 1`
+	where := map[string]interface{}{
+		"api_key_hash": hash,
+		"_limit":       []uint{0, 1},
+	}
+	sqlStr, args, err := builder.BuildSelect("clients", where, clientSelectFields)
+	if err != nil {
+		return nil, err
+	}
 
 	var m model.ClientModel
-	if err := r.db.GetContext(ctx, &m, query, hash); err != nil {
+	if err := r.db.GetContext(ctx, &m, sqlStr, args...); err != nil {
 		return nil, err
 	}
 	client := m.ToEntity()
@@ -40,10 +55,15 @@ FROM clients WHERE api_key_hash = ? LIMIT 1`
 
 // FindPermissions 查询客户端有权调用的工具名称列表
 func (r *ClientRepo) FindPermissions(ctx context.Context, clientID string) ([]string, error) {
-	query := `SELECT t.name FROM client_tool_permissions p
-JOIN tools t ON p.tool_id = t.tool_id WHERE p.client_id = ?`
+	template := `SELECT t.name FROM client_tool_permissions p
+	JOIN tools t ON p.tool_id = t.tool_id WHERE p.client_id = {{client_id}}`
+	params := map[string]interface{}{"client_id": clientID}
+	sqlStr, args, err := builder.NamedQuery(template, params)
+	if err != nil {
+		return nil, err
+	}
 	var names []string
-	if err := r.db.SelectContext(ctx, &names, query, clientID); err != nil {
+	if err := r.db.SelectContext(ctx, &names, sqlStr, args...); err != nil {
 		return nil, err
 	}
 	return names, nil
@@ -53,17 +73,24 @@ JOIN tools t ON p.tool_id = t.tool_id WHERE p.client_id = ?`
 
 // ListAll 分页查询所有客户端，toolCounts 与 clients 一一对应
 func (r *ClientRepo) ListAll(page, size int) ([]entity.Client, []int, int, error) {
-	var total int
-	if err := r.db.Get(&total, "SELECT COUNT(*) FROM clients"); err != nil {
+	res, err := builder.AggregateQuery(context.Background(), r.db.DB, "clients", nil, builder.AggregateCount("*"))
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	total := int(res.Int64())
+
+	offset := (page - 1) * size
+	where := map[string]interface{}{
+		"_orderby": "created_at DESC",
+		"_limit":   []uint{uint(offset), uint(size)},
+	}
+	sqlStr, args, err := builder.BuildSelect("clients", where, clientSelectFields)
+	if err != nil {
 		return nil, nil, 0, err
 	}
 
-	offset := (page - 1) * size
-	query := `SELECT client_id, name, api_key_hash, api_key_prefix, description, status, created_at, updated_at
-FROM clients ORDER BY created_at DESC LIMIT ? OFFSET ?`
-
 	var models []model.ClientModel
-	if err := r.db.Select(&models, query, size, offset); err != nil {
+	if err := r.db.Select(&models, sqlStr, args...); err != nil {
 		return nil, nil, 0, err
 	}
 
@@ -82,14 +109,25 @@ FROM clients ORDER BY created_at DESC LIMIT ? OFFSET ?`
 		Count    int    `db:"cnt"`
 	}
 	if len(clientIDs) > 0 {
-		q, args, _ := sqlx.In(
-			"SELECT client_id, COUNT(*) AS cnt FROM client_tool_permissions WHERE client_id IN (?) GROUP BY client_id",
-			clientIDs,
+		// 使用 NamedQuery 动态生成 IN 子句的命名参数，避免 sqlx.In
+		paramKeys := make([]string, len(clientIDs))
+		params := make(map[string]interface{}, len(clientIDs))
+		for i, id := range clientIDs {
+			key := fmt.Sprintf("id%d", i)
+			paramKeys[i] = fmt.Sprintf("{{%s}}", key)
+			params[key] = id
+		}
+		template := fmt.Sprintf(
+			"SELECT client_id, COUNT(*) AS cnt FROM client_tool_permissions WHERE client_id IN (%s) GROUP BY client_id",
+			strings.Join(paramKeys, ","),
 		)
-		var rows []row
-		if err := r.db.Select(&rows, q, args...); err == nil {
-			for _, rr := range rows {
-				toolCountMap[rr.ClientID] = rr.Count
+		q, qArgs, buildErr := builder.NamedQuery(template, params)
+		if buildErr == nil {
+			var rows []row
+			if err := r.db.Select(&rows, q, qArgs...); err == nil {
+				for _, rr := range rows {
+					toolCountMap[rr.ClientID] = rr.Count
+				}
 			}
 		}
 	}
@@ -102,10 +140,14 @@ FROM clients ORDER BY created_at DESC LIMIT ? OFFSET ?`
 
 // FindByID 按 client_id 查找
 func (r *ClientRepo) FindByID(ctx context.Context, clientID string) (*entity.Client, error) {
-	query := `SELECT client_id, name, api_key_hash, api_key_prefix, description, status, created_at, updated_at
-FROM clients WHERE client_id = ?`
+	where := map[string]interface{}{"client_id": clientID}
+	sqlStr, args, err := builder.BuildSelect("clients", where, clientSelectFields)
+	if err != nil {
+		return nil, err
+	}
+
 	var m model.ClientModel
-	if err := r.db.GetContext(ctx, &m, query, clientID); err != nil {
+	if err := r.db.GetContext(ctx, &m, sqlStr, args...); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -117,51 +159,84 @@ FROM clients WHERE client_id = ?`
 
 // Create 新建客户端
 func (r *ClientRepo) Create(ctx context.Context, client *entity.Client) error {
-	query := `INSERT INTO clients (client_id, name, api_key_hash, api_key_prefix, description, status)
-VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query,
-		client.ClientID, client.Name, client.APIKeyHash, client.APIKeyPrefix,
-		client.Description, client.Status,
-	)
+	data := []map[string]interface{}{{
+		"client_id":      client.ClientID,
+		"name":           client.Name,
+		"api_key_hash":   client.APIKeyHash,
+		"api_key_prefix": client.APIKeyPrefix,
+		"description":    client.Description,
+		"status":         client.Status,
+	}}
+	sqlStr, args, err := builder.BuildInsert("clients", data)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, sqlStr, args...)
 	return err
 }
 
 // Update 更新客户端信息
 func (r *ClientRepo) Update(ctx context.Context, client *entity.Client) error {
-	query := `UPDATE clients SET name=?, description=?, status=? WHERE client_id=?`
-	_, err := r.db.ExecContext(ctx, query,
-		client.Name, client.Description, client.Status, client.ClientID,
-	)
+	where := map[string]interface{}{"client_id": client.ClientID}
+	update := map[string]interface{}{
+		"name":        client.Name,
+		"description": client.Description,
+		"status":      client.Status,
+	}
+	sqlStr, args, err := builder.BuildUpdate("clients", where, update)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, sqlStr, args...)
 	return err
 }
 
 // UpdateAPIKey 更新客户端的 API Key（hash + prefix）
 func (r *ClientRepo) UpdateAPIKey(ctx context.Context, clientID, apiKeyHash, apiKeyPrefix string) error {
-	query := `UPDATE clients SET api_key_hash=?, api_key_prefix=? WHERE client_id=?`
-	_, err := r.db.ExecContext(ctx, query, apiKeyHash, apiKeyPrefix, clientID)
+	where := map[string]interface{}{"client_id": clientID}
+	update := map[string]interface{}{
+		"api_key_hash":   apiKeyHash,
+		"api_key_prefix": apiKeyPrefix,
+	}
+	sqlStr, args, err := builder.BuildUpdate("clients", where, update)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, sqlStr, args...)
 	return err
 }
 
 // Delete 删除客户端
 func (r *ClientRepo) Delete(ctx context.Context, clientID string) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM clients WHERE client_id=?", clientID)
+	where := map[string]interface{}{"client_id": clientID}
+	sqlStr, args, err := builder.BuildDelete("clients", where)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, sqlStr, args...)
 	return err
 }
 
 // Count 总数
 func (r *ClientRepo) Count(ctx context.Context) (int, error) {
-	var count int
-	err := r.db.GetContext(ctx, &count, "SELECT COUNT(*) FROM clients")
-	return count, err
+	res, err := builder.AggregateQuery(ctx, r.db.DB, "clients", nil, builder.AggregateCount("*"))
+	if err != nil {
+		return 0, err
+	}
+	return int(res.Int64()), nil
 }
 
 // ======================== 权限管理 ========================
 
 // FindToolPermissions 查询客户端有权调用的 tool_id 列表
 func (r *ClientRepo) FindToolPermissions(ctx context.Context, clientID string) ([]int64, error) {
-	query := `SELECT tool_id FROM client_tool_permissions WHERE client_id = ?`
+	where := map[string]interface{}{"client_id": clientID}
+	sqlStr, args, err := builder.BuildSelect("client_tool_permissions", where, []string{"tool_id"})
+	if err != nil {
+		return nil, err
+	}
 	var toolIDs []int64
-	if err := r.db.SelectContext(ctx, &toolIDs, query, clientID); err != nil {
+	if err := r.db.SelectContext(ctx, &toolIDs, sqlStr, args...); err != nil {
 		return nil, err
 	}
 	return toolIDs, nil
@@ -176,17 +251,30 @@ func (r *ClientRepo) SavePermissions(ctx context.Context, clientID string, toolI
 	defer tx.Rollback()
 
 	// 删除旧权限
-	if _, err := tx.ExecContext(ctx, "DELETE FROM client_tool_permissions WHERE client_id=?", clientID); err != nil {
+	delWhere := map[string]interface{}{"client_id": clientID}
+	delSQL, delArgs, err := builder.BuildDelete("client_tool_permissions", delWhere)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, delSQL, delArgs...); err != nil {
 		return err
 	}
 
-	// 批量插入新权限
+	// 批量插入新权限（单次多行 INSERT，替换逐行循环）
 	if len(toolIDs) > 0 {
-		stmt := `INSERT INTO client_tool_permissions (client_id, tool_id) VALUES (?, ?)`
-		for _, tid := range toolIDs {
-			if _, err := tx.ExecContext(ctx, stmt, clientID, tid); err != nil {
-				return err
+		data := make([]map[string]interface{}, len(toolIDs))
+		for i, tid := range toolIDs {
+			data[i] = map[string]interface{}{
+				"client_id": clientID,
+				"tool_id":   tid,
 			}
+		}
+		insSQL, insArgs, err := builder.BuildInsert("client_tool_permissions", data)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, insSQL, insArgs...); err != nil {
+			return err
 		}
 	}
 
@@ -198,10 +286,16 @@ func (r *ClientRepo) DeletePermissionsByToolIDs(ctx context.Context, toolIDs []i
 	if len(toolIDs) == 0 {
 		return nil
 	}
-	query, args, err := sqlx.In("DELETE FROM client_tool_permissions WHERE tool_id IN (?)", toolIDs)
+	// 使用 Gendry 原生 IN 操作符，无需 sqlx.In + Rebind
+	inArgs := make([]interface{}, len(toolIDs))
+	for i, id := range toolIDs {
+		inArgs[i] = id
+	}
+	where := map[string]interface{}{"tool_id IN": inArgs}
+	sqlStr, args, err := builder.BuildDelete("client_tool_permissions", where)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, r.db.Rebind(query), args...)
+	_, err = r.db.ExecContext(ctx, sqlStr, args...)
 	return err
 }
