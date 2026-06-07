@@ -226,6 +226,8 @@ func (s *AdminService) CreateTool(req dto.ToolDTO) (*dto.ToolDTO, error) {
 		return nil, err
 	}
 
+	s.notifyToolChanged()
+
 	req.ToolID = tool.ToolID
 	return &req, nil
 }
@@ -277,6 +279,8 @@ func (s *AdminService) UpdateTool(toolID int64, req dto.ToolDTO) (*dto.ToolDTO, 
 		return nil, err
 	}
 
+	s.notifyToolChanged()
+
 	req.ToolID = toolID
 	return &req, nil
 }
@@ -288,10 +292,20 @@ func (s *AdminService) DeleteTool(toolID int64) error {
 		return fmt.Errorf("删除工具授权信息失败: %w", err)
 	}
 	// 2. 删除工具自身
-	return s.toolRepo.Delete(toolID)
+	if err := s.toolRepo.Delete(toolID); err != nil {
+		return err
+	}
+
+	s.notifyToolChanged()
+	return nil
 }
 
-// ======================== 客户端 CRUD ========================
+// notifyToolChanged 通知所有 SSE 客户端工具列表已变更
+// 客户端收到 notifications/tools/list_changed 后应重新调用 tools/list 刷新工具列表
+func (s *AdminService) notifyToolChanged() {
+	msg := []byte(`{"jsonrpc":"2.0","method":"notifications/tools/list_changed"}`)
+	s.sessionManager.Broadcast(msg)
+}
 
 // ListClients 客户端列表
 func (s *AdminService) ListClients(page, size int) ([]dto.ClientDTO, int, error) {

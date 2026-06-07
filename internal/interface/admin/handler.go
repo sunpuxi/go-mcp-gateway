@@ -2,9 +2,9 @@ package admin
 
 import (
 	"encoding/json"
+	"github.com/go-chi/chi/v5"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	appservice "github.com/sunpuxi/go-mcp-gateway/internal/application/service"
 	"github.com/sunpuxi/go-mcp-gateway/internal/interface/dto"
 )

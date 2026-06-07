@@ -96,6 +96,22 @@ func (m *Manager) List() []*entity.Session {
 	return result
 }
 
+// Broadcast 向所有活跃会话的 SSE 通道推送消息（非阻塞，通道满或 SSECh 为 nil 则跳过）
+func (m *Manager) Broadcast(data []byte) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, s := range m.sessions {
+		if s.SSECh == nil {
+			continue
+		}
+		select {
+		case s.SSECh <- data:
+		default:
+			// 通道满，跳过（避免阻塞广播）
+		}
+	}
+}
+
 // cleanupLoop 定期清理过期会话
 func (m *Manager) cleanupLoop() {
 	ticker := time.NewTicker(m.ttl / 2)

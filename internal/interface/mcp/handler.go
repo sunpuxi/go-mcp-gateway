@@ -110,10 +110,6 @@ func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ============================================================================
-//  消息接收 — POST /messages?session_id=xxx
-// ============================================================================
-
 func (h *Handler) HandleMessage(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
@@ -222,10 +218,6 @@ func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
 
 	h.sendSSE(sessionID, jsonrpc.NewResponse(req.ID, output.Result))
 }
-
-// ============================================================================
-//  辅助方法
-// ============================================================================
 
 // rejectCode 将 RejectType 映射到 JSON-RPC 错误码
 func rejectCode(t appcommand.RejectType) int {
