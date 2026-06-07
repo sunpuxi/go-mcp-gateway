@@ -43,10 +43,6 @@ func extractAPIKey(r *http.Request) (string, bool) {
 	return strings.TrimSpace(auth), true
 }
 
-// ============================================================================
-//  SSE 传输 — GET /sse
-// ============================================================================
-
 func (h *Handler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	// 0. 鉴权
 	apiKey, ok := extractAPIKey(r)
