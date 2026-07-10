@@ -167,13 +167,16 @@ func (h *Handler) handleInitialized(sessionID string, req *jsonrpc.Request) {
 	h.sessionManager.MarkInitialized(sessionID, "2025-06-18")
 }
 
+// handleToolsList 工具查询请求处理。由于 MCP 的加载不像 Skiils 是渐进式加载的，因此这里的多租户鉴权设计可以做为第一层的 MCP 过滤。
 func (h *Handler) handleToolsList(sessionID string, req *jsonrpc.Request) {
+	// 获取会话信息
 	session, ok := h.sessionManager.Get(sessionID)
 	if !ok || !session.Initialized {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidRequest, "请先完成 initialize"))
 		return
 	}
 
+	// 获取可以访问的 Tool 列表
 	output, err := h.mcpService.ListTools(session.Permissions)
 	if err != nil {
 		logger.Error("查询工具列表失败", "error", err)
@@ -181,23 +184,28 @@ func (h *Handler) handleToolsList(sessionID string, req *jsonrpc.Request) {
 		return
 	}
 
+	// 返回
 	result := mcp.ToolListResult{Tools: output.Tools}
 	h.sendSSE(sessionID, jsonrpc.NewResponse(req.ID, result))
 }
 
+// handleToolsCall 执行工具调用。这一个步骤主要工作就是将 MCP 请求转换为 HTTP 请求。
 func (h *Handler) handleToolsCall(sessionID string, req *jsonrpc.Request) {
+	// 获取会话信息
 	session, ok := h.sessionManager.Get(sessionID)
 	if !ok || !session.Initialized {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidRequest, "请先完成 initialize"))
 		return
 	}
 
+	// 请求参数解析
 	var callReq mcp.ToolCallRequest
 	if err := json.Unmarshal(req.Params, &callReq); err != nil {
 		h.sendSSE(sessionID, jsonrpc.NewErrorResponse(req.ID, jsonrpc.CodeInvalidParams, "tools/call 参数解析失败: "+err.Error()))
 		return
 	}
 
+	// 执行工具调用（包含熔断和限流操作）
 	output, err := h.mcpService.CallTool(appcommand.CallToolInput{
 		Name:      callReq.Name,
 		Arguments: callReq.Arguments,
