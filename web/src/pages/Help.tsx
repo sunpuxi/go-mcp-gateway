@@ -28,6 +28,20 @@ const steps = [
           <li><Text strong>基础 URL</Text>：下游 HTTP 服务的基础地址，如 <code>https://api.example.com</code></li>
           <li><Text strong>描述</Text>：可选，对项目的备注说明</li>
         </ul>
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginTop: 16 }}
+          message="命名建议：使用项目组名称作为前缀"
+          description={
+            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+              为避免接入工具过多时 AI 模型产生<Text strong>幻觉</Text>（混淆不同项目组的工具），
+              建议 Project ID 使用项目组的英文名称作为前缀，例如广告项目组使用 <code>advertise</code> 前缀，
+              用户项目组使用 <code>user</code> 前缀。这样 AI 能通过前缀快速识别工具所属的业务域，
+              大幅降低误调用风险。
+            </Paragraph>
+          }
+        />
       </div>
     ),
   },
@@ -48,6 +62,58 @@ const steps = [
           <li><Text strong>URL 模板</Text>：使用 <code>{'{参数名}'}</code> 作为占位符，如 <code>/users/{'{user_id}'}</code></li>
           <li><Text strong>超时(ms)</Text>：默认 5000，按需调整</li>
         </ul>
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginTop: 16, marginBottom: 16 }}
+          message="重要：工具命名规范 —— 使用项目组前缀防止模型幻觉"
+          description={
+            <div>
+              <Paragraph style={{ marginTop: 8, marginBottom: 8 }}>
+                当接入的工具数量较多时，AI 模型容易将不同项目组的工具<Text strong>混淆</Text>，
+                产生<Text strong>幻觉</Text>（例如将「广告系统」的工具误认为是「用户系统」的工具）。
+              </Paragraph>
+              <Paragraph style={{ marginBottom: 8 }}>
+                <Text strong>解决方案</Text>：工具名称统一使用 <Text code>项目组前缀_功能描述</Text> 的命名格式：
+              </Paragraph>
+              <Table
+                dataSource={[
+                  { key: '1', group: '广告项目组 (advertise)', good: 'advertise_account_getAccountInfo', bad: 'getAccountInfo' },
+                  { key: '2', group: '广告项目组 (advertise)', good: 'advertise_campaign_listCampaigns', bad: 'listCampaigns' },
+                  { key: '3', group: '用户项目组 (user)', good: 'user_profile_getUserProfile', bad: 'getUserProfile' },
+                  { key: '4', group: '用户项目组 (user)', good: 'user_order_queryOrders', bad: 'queryOrders' },
+                  { key: '5', group: '内容项目组 (content)', good: 'content_article_searchArticles', bad: 'searchArticles' },
+                  { key: '6', group: '支付项目组 (payment)', good: 'payment_transaction_createOrder', bad: 'createOrder' },
+                ]}
+                columns={[
+                  { title: '项目组', dataIndex: 'group', key: 'group', width: 200 },
+                  {
+                    title: '✅ 推荐命名',
+                    dataIndex: 'good',
+                    key: 'good',
+                    width: 300,
+                    render: (text: string) => <Text code style={{ color: '#52c41a' }}>{text}</Text>,
+                  },
+                  {
+                    title: '❌ 不推荐命名',
+                    dataIndex: 'bad',
+                    key: 'bad',
+                    width: 200,
+                    render: (text: string) => <Text code style={{ color: '#ff4d4f' }}>{text}</Text>,
+                  },
+                ]}
+                pagination={false}
+                size="small"
+                bordered
+              />
+              <Paragraph style={{ marginTop: 12, marginBottom: 0 }}>
+                <Text strong>原理</Text>：AI 模型通过工具名称中的前缀来判断工具归属。
+                带有明确前缀的工具名能让模型在调用时清楚知道当前操作的是哪个业务域，
+                从而<Text strong>显著降低跨项目组误调用的概率</Text>。
+              </Paragraph>
+            </div>
+          }
+        />
         <Paragraph strong>② 参数映射规则（最重要）</Paragraph>
         <Paragraph>
           每条规则定义了 MCP 调用参数如何转换为 HTTP 请求的对应部分。需要逐一添加：
@@ -183,6 +249,35 @@ const steps = [
 ]
 
 const faqs = [
+  {
+    key: '0', label: '接入工具数量多了之后，AI 模型会不会混淆不同的工具？',
+    children: (
+      <div>
+        <Paragraph>
+          会的，这被称为<Text strong>模型幻觉</Text>。当接入的工具数量较多（例如几十个甚至上百个），
+          且不同项目组中存在功能相似的工具时（如多个项目组都有「查询账户信息」功能），
+          AI 模型可能会<Text strong>错误地将 A 项目组的工具用于 B 项目组的场景</Text>，
+          导致调用错误的接口。
+        </Paragraph>
+        <Paragraph>
+          <Text strong>解决方案</Text>：在命名项目和工具时，统一使用<Text strong>项目组前缀</Text>。
+        </Paragraph>
+        <ul>
+          <li><Text strong>Project ID</Text>：使用项目组英文名作为前缀，如 <code>advertise</code>、<code>user</code>、<code>payment</code></li>
+          <li><Text strong>工具名称</Text>：格式为 <Text code>{'项目组前缀_模块_功能'}</Text>，例如：
+            <ul>
+              <li>广告项目组：<code>advertise_account_getAccountInfo</code>、<code>advertise_campaign_listCampaigns</code></li>
+              <li>用户项目组：<code>user_profile_getUserProfile</code>、<code>user_order_queryOrders</code></li>
+              <li>支付项目组：<code>payment_transaction_createOrder</code>、<code>payment_refund_processRefund</code></li>
+            </ul>
+          </li>
+        </ul>
+        <Paragraph style={{ marginBottom: 0 }}>
+          AI 模型通过工具名称中的前缀来识别工具归属，带有明确前缀的命名能<Text strong>显著降低跨项目组误调用的概率</Text>。
+        </Paragraph>
+      </div>
+    ),
+  },
   {
     key: '1', label: '同一个 API Key 可以多人共用吗？',
     children: <Paragraph>可以。每个客户端对应一个项目组，组内的所有 Agent 实例共享同一个 API Key。</Paragraph>,
